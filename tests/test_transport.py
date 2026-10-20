@@ -42,6 +42,27 @@ class TransportTests(unittest.TestCase):
                 network.assert_not_called()
             self.assertEqual(q.used('s'),0)
 
+    def test_rate_limit_is_shared_by_transport_instances(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory,'QLOO_PROBE_LOGGER':''}):
+            workers=[Qloo() for _ in range(6)]
+            with ThreadPoolExecutor(max_workers=6) as pool:
+                list(pool.map(lambda i:workers[i].reserve(str(i)),range(6)))
+            with sqlite3.connect(workers[0].database) as db:
+                self.assertEqual(db.execute('SELECT used FROM months').fetchone()[0],1006)
+                # The sixth start only becomes possible once the first window expires.
+                self.assertLessEqual(db.execute('SELECT count(*) FROM starts').fetchone()[0],5)
+
+    def test_new_utc_month_gets_its_own_reserved_balance(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory,'QLOO_PROBE_LOGGER':''}):
+            q=Qloo()
+            for month in ['2026-10','2026-11']:
+                with patch('qloo.time.strftime',return_value=month):q.reserve(month)
+            with sqlite3.connect(q.database) as db:
+                self.assertEqual(db.execute('SELECT month, used FROM months ORDER BY month').fetchall(),[('2026-10',1001),('2026-11',1001)])
+
     def test_failed_upstream_request_is_charged_and_cap_cannot_exceed_8000(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory,'QLOO_API_KEY':'synthetic-test-token','QLOO_PROBE_LOGGER':'','MONTHLY_CALL_CAP':'99999'}):
             q=Qloo();self.assertEqual(q.monthly_cap,8000)

@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import sqlite3
+import secrets
 from pathlib import Path
 import threading
 import time
@@ -56,7 +57,7 @@ class Qloo:
 
     def save(self, path, params, data):
         target = self.cache/(self.signature(path, params)+'.json')
-        tmp = target.with_suffix('.tmp')
+        tmp = target.with_suffix('.'+secrets.token_hex(6)+'.tmp')
         tmp.write_text(json.dumps({'saved': time.time(), 'data': data}))
         os.chmod(tmp, 0o600)
         tmp.replace(target)
