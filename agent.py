@@ -28,7 +28,7 @@ class Agent:
     def run(self, session, body, emit):
         started=time.perf_counter()
         people=body.get('people', DEFAULT_PEOPLE)
-        area=body.get('area','Seongsu')
+        area=body.get('area','Williamsburg NYC')
         occasion=body.get('occasion','Dinner')
         start_radius=body.get('start_radius',2000)
         if start_radius not in (100,2000,3500,5000):raise ValueError('Choose a supported starting radius.')

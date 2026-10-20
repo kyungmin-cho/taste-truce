@@ -62,7 +62,7 @@ class SessionTests(unittest.TestCase):
         from scenes import save_scene
         from unittest.mock import Mock
         self.sessions.cap=20;self.sessions.daily=1
-        save_scene(self.q,'seongsu',{'status':'done','picks':[]})
+        save_scene(self.q,'williamsburg',{'status':'done','picks':[]})
         app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
         app.agent=Mock();app.agent.run.return_value={'status':'clarification','veto':{}}
         thread=threading.Thread(target=app.serve_forever,daemon=True);thread.start()

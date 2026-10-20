@@ -61,7 +61,7 @@ function showQuestions(questions){
 }
 function drawMap(off){
   if(!window.L){el('map-fallback').hidden=false;el('map-fallback').textContent='The map could not load. Place names and ranks remain available below.';return;}
-  if(!map){map=L.map('map',{scrollWheelZoom:false}).setView([37.5445,127.0557],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);}
+  if(!map){map=L.map('map',{scrollWheelZoom:false}).setView([40.7081,-73.9571],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);}
   map.invalidateSize();pins.forEach(p=>map.removeLayer(p));pins=[];
   const points=[];
   function pin(e,color,label,shared=false){

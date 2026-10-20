@@ -15,7 +15,7 @@ SCENES_TRIED=4  # Two original scenes and the two preregistered group variants.
 VERSION=2
 
 def default_scene():
-    name=os.getenv('DEFAULT_SCENE') or 'seongsu'
+    name=os.getenv('DEFAULT_SCENE') or 'williamsburg'
     if name not in PRESETS:raise ValueError('DEFAULT_SCENE must be seongsu, williamsburg or majority')
     return name
 

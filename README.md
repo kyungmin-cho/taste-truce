@@ -8,7 +8,7 @@ Live demo: <DEMO_URL>
 
 ## The 30-second demo path
 
-1. Open the demo. The first screen is a saved scene: Seongsu, dinner, Friday 7 p.m., three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
+1. Open the demo. The first screen is a saved scene: Williamsburg, dinner, Friday 7 p.m., three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
 2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick. The worst rank in each row is highlighted. In the saved Seongsu scene the most popular place ranks 10·2·5 for the three friends, and the fair pick ranks 4·1·2.
 3. Choose the "Williamsburg · majority / minority" preset. Two friends share a #1, Ume, which the third friend ranks #29. The fair pick, Maison Premiere, ranks 6·3·2.
 4. Type a veto such as "somewhere quieter" or "no bars please" and press Replan. The Agent steps panel lists each tool call, then an `observe → replan` step that suggests what to try next.
@@ -72,7 +72,7 @@ The image runs as an unprivileged user. The `/data` volume holds the private res
 | `QLOO_API_KEY` | required | Qloo key, read only by the server. |
 | `QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo API root. |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | unset | Optional OpenAI-compatible `/chat/completions` endpoint for the planner. Set all three, or the local parser runs. |
-| `DEFAULT_SCENE` | `seongsu` | First scene: `seongsu`, `williamsburg` or `majority`. |
+| `DEFAULT_SCENE` | `williamsburg` | First scene: `seongsu`, `williamsburg` or `majority`. |
 | `DEFAULT_SCENE_TTL_SECONDS` | `0` (no expiry) | A positive value must be at least 2592000 (30 days). |
 | `QLOO_CACHE_TTL_SECONDS` | `0` (no expiry) | Response cache expiry. |
 | `QLOO_CACHE_DIR` | `~/.cache/taste-truce/responses` | Private response cache and saved scenes (`/data/cache` in Docker). |

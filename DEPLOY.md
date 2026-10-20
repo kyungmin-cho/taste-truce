@@ -1,7 +1,7 @@
 # Deployment checklist
 
 - Set server-side `QLOO_API_KEY`. Never include credentials in browser assets or images.
-- Set `DEFAULT_SCENE=seongsu` (default), `williamsburg`, or `majority`.
+- Set `DEFAULT_SCENE=williamsburg` (default), `seongsu`, or `majority`.
 - Mount a persistent writable volume at `/data` in the container. Cache and SQLite state must survive restarts; use one application instance with this local SQLite accounting model.
 - Keep an instance running if the host otherwise scales to zero. The application does not configure host scaling.
 - Run `python prewarm.py` before serving traffic. It builds missing or expired snapshots for all three presets; existing snapshots require no calls. A cold cache currently needs 26 calls in the recorded run for these inputs; allow the configured budget. `--refresh` rebuilds snapshots from the configured response cache and can make calls when that cache is missing or expired.

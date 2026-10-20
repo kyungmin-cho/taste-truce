@@ -86,7 +86,7 @@ class Qloo:
         while True:
             with self.lock:
                 if self.sessions.get(session, 0) >= self.session_cap:
-                    raise BudgetError('Session call budget reached. Try the cached Seongsu scene.')
+                    raise BudgetError('Session call budget reached. Try the cached Williamsburg scene.')
                 with sqlite3.connect(self.database, timeout=10) as db:
                     db.execute('BEGIN IMMEDIATE')
                     month = time.strftime('%Y-%m', time.gmtime())

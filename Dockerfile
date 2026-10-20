@@ -4,6 +4,6 @@ COPY server.py agent.py planner.py logic.py qloo.py sessions.py prewarm.py scene
 COPY static ./static
 RUN useradd --create-home appuser && mkdir -p /data/cache /data/state && chown -R appuser:appuser /data
 USER appuser
-ENV PORT=3000 PYTHONDONTWRITEBYTECODE=1 QLOO_CACHE_DIR=/data/cache QLOO_STATE_DIR=/data/state
+ENV DEFAULT_SCENE=williamsburg PORT=3000 PYTHONDONTWRITEBYTECODE=1 QLOO_CACHE_DIR=/data/cache QLOO_STATE_DIR=/data/state
 EXPOSE 3000
 CMD ["python", "server.py", "--host", "0.0.0.0"]
