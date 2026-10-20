@@ -36,7 +36,9 @@ class TransportTests(unittest.TestCase):
             q=Qloo();payload={'results':[]};q.save('/search',{'query':'A'},payload)
             with patch('urllib.request.urlopen') as network:
                 self.assertTrue(q.request('s','/search',{'query':'A'})[1])
-                q.ttl=-1
+                q.ttl=1
+                target=q.cache/(q.signature('/search',{'query':'A'})+'.json')
+                old=json.loads(target.read_text());old['saved']=0;target.write_text(json.dumps(old))
                 self.assertEqual(q.request('s','/search',{'query':'A'}),(payload,'stale · budget reached'))
                 with self.assertRaises(BudgetError):q.request('s','/search',{'query':'B'})
                 network.assert_not_called()

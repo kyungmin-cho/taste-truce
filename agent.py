@@ -1,9 +1,9 @@
 """A bounded tool loop: resolve, clarify, retrieve, widen, rescore, decide."""
 from concurrent.futures import ThreadPoolExecutor
 import time
-from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast
+from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table
 from qloo import QlooError, BudgetError
-from planner import choose_tools, apply_tools, PlannerError
+from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate
 
 AREAS = {'Seongsu': (127.0557,37.5445), 'Williamsburg NYC': (-73.9571,40.7081)}
 DEFAULT_PEOPLE = [
@@ -63,7 +63,10 @@ class Agent:
         if 'max_price_level' in veto and veto['max_price_level'] not in (1,2):raise ValueError('Invalid price limit.')
         scene={'people':people,'area':area,'occasion':occasion,'start_radius':start_radius}
         t=time.perf_counter()
-        try:planner,actions=choose_tools(text,scene)
+        try:
+            if body.get('suggested_action'):
+                planner,actions='User-selected next step',validate([body['suggested_action']])
+            else:planner,actions=choose_tools(text,scene)
         except PlannerError as err:
             step(err.planner,['No supported tool matched; ask for a condition'],0,(time.perf_counter()-t)*1000)
             raise
@@ -182,6 +185,13 @@ class Agent:
                 'baseline':baseline,'overlap':overlap,'overlap_denominator':min(10,len(picks)), 'pool_size':len(pool), 'method':method,
                 'concessions':explanations,'veto':veto,'planner':planner,'start_radius':start_radius, 'excluded_count':len(excluded_ids),
                 'notice':('Nothing matched, nothing changed.' if (text or any(veto.values())) and not excluded_ids and all(a['name'] in ('plan','exclude_categories','exclude_tags','exclude_place') for a in actions) else ''),'radius':radius,'take':take,'contrast':contrast, 'session_calls':self.qloo.used(session)}
+        result['concession_table']=concession_table(people,lists,baseline,picks[0])
+        if text:
+            observation={'excluded_count':len(excluded_ids),'remaining_count':len(pool),'radius':radius,'nothing_matched':result['notice']=='Nothing matched, nothing changed.'}
+            t=time.perf_counter()
+            source,suggestions=observe_replan(text,scene,actions,observation)
+            result['suggestions']=suggestions
+            step('observe → replan · '+source,[str(observation)]+[s['label'] for s in suggestions],len(suggestions),(time.perf_counter()-t)*1000)
         result['steps']=steps
         result['elapsed_ms']=round((time.perf_counter()-started)*1000)
         return result

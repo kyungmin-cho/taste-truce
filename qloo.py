@@ -33,7 +33,7 @@ class Qloo:
             db.execute('CREATE TABLE IF NOT EXISTS months (month TEXT PRIMARY KEY, used INTEGER NOT NULL)')
             db.execute('CREATE TABLE IF NOT EXISTS starts (at REAL NOT NULL)')
         os.chmod(self.database, 0o600)
-        self.ttl = int((os.getenv('QLOO_CACHE_TTL_SECONDS') or '86400'))
+        self.ttl = int((os.getenv('QLOO_CACHE_TTL_SECONDS') or '0'))
         self.session_cap = int((os.getenv('SESSION_CALL_CAP') or '30'))
         self.lock = threading.RLock()
         self.starts = []
@@ -118,7 +118,7 @@ class Qloo:
             if cached.exists():
                 try:
                     item = json.loads(cached.read_text())
-                    if time.time()-item['saved'] < self.ttl:
+                    if self.ttl <= 0 or time.time()-item['saved'] < self.ttl:
                         return item['data'], True
                 except (ValueError, KeyError):
                     pass

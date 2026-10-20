@@ -35,7 +35,7 @@ def local_tools(text):
     if not t:return [{'name':'plan','arguments':{}}]
     if re.search(r'\b(no|not|without|avoid|skip|exclude|remove|don.t want|anything but)\b.{0,25}\b(bars?|pubs?|clubs?|nightclubs?)\b|술집.*(빼|싫|말고)|술.*없이',t):
         add('exclude_categories',categories=['bar','pub','nightclub'])
-    if re.search(r'quiet|less noisy|not so loud|not too loud|조용',t):
+    if re.search(r'quiet|less noisy|not so loud|not too loud|hear each other|actually talk|조용',t):
         add('exclude_tags',tags=['Loud','Busy','Lively'])
     if re.search(r'not (that|this|the same) (place|one|restaurant)|somewhere else|another (place|one)|different (place|restaurant)|그\s*(집|곳).*말고|여기.*말고',t):
         add('exclude_place',target='current')
@@ -75,6 +75,7 @@ def parse_local(text, marker):
     except ValueError as err:raise PlannerError(str(err),marker) from None
 
 def choose_tools(text, scene):
+    if not text.strip():return 'Direct plan · no condition', [{'name':'plan','arguments':{}}]
     configured=all(os.getenv(k) for k in ['LLM_BASE_URL','LLM_MODEL','LLM_API_KEY'])
     if configured:
         try:
@@ -111,3 +112,29 @@ def apply_tools(scene, veto, actions, current_pick):
             if args['vegetarian']:veto['vegetarian']=True
             needs_taste=True
     return scene,veto,needs_taste
+
+
+def observe_replan(text, scene, actions, observation):
+    """One observation turn proposes tools; the user chooses before new execution."""
+    if observation['remaining_count']<10 and observation['radius']<5000:
+        local=[{'label':'Search farther · 5 km','text':'search farther','name':'widen_radius','arguments':{'radius':5000}}]
+    elif observation['nothing_matched']:
+        local=[{'label':'Try recorded quieter tags','text':'somewhere quieter','name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}}]
+    else:
+        local=[{'label':'Try a different shared pick','text':'not that place please','name':'exclude_place','arguments':{'target':'current'}}]
+    if all(os.getenv(k) for k in ['LLM_BASE_URL','LLM_MODEL','LLM_API_KEY']):
+        try:
+            calls=[{'id':'executed_'+str(i),'type':'function','function':{'name':a['name'],'arguments':json.dumps(a['arguments'])}} for i,a in enumerate(actions)]
+            messages=[{'role':'system','content':'Observe the executed tool results and propose ONE sensible alternative tool. Nothing matched means propose a different condition; fewer than ten candidates means suggest widening if possible. Do not change scores or execute anything. The user will choose.'},
+                      {'role':'user','content':json.dumps({'request':text,'scene':scene})},
+                      {'role':'assistant','content':None,'tool_calls':calls}]
+            messages += [{'role':'tool','tool_call_id':c['id'],'content':json.dumps(observation)} for c in calls]
+            payload={'model':os.environ['LLM_MODEL'],'messages':messages,'tools':[t for t in TOOLS if t['function']['name'] in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion')],'tool_choice':'required','max_tokens':400}
+            req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY']})
+            with urllib.request.urlopen(req,timeout=30) as response:data=json.load(response)
+            c=data['choices'][0]['message']['tool_calls'][0]['function']
+            a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
+            if a['name'] not in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion'):raise ValueError('Unsupported follow-up')
+            return 'LLM planner',[{'label':a['name'].replace('_',' ')+' · '+str(a['arguments']),**a}]
+        except Exception:return 'Local next steps · LLM unavailable',local
+    return 'Local next steps',local

@@ -17,15 +17,15 @@ python3 server.py
 
 Open http://localhost:3000. Only the server reads provider credentials. Alternatively use `ENV_FILE=/path/to/private.env python3 server.py`. The server binds to localhost by default. Leaflet is served locally with its license; OpenStreetMap tiles require internet access. Results remain readable if tiles cannot load.
 
-Optional settings can be omitted or removed from `.env`: `SESSION_CALL_CAP` (30), `QLOO_CACHE_DIR` (`~/.cache/taste-truce/responses`), `QLOO_STATE_DIR` (`~/.local/state/taste-truce`), `MONTHLY_CALL_CAP` (8000 maximum), `MONTHLY_RESERVED_CALLS` (1000), `QLOO_CACHE_TTL_SECONDS` (86400), `HOST` (`127.0.0.1`), `PORT` (3000), `IP_DAILY_SESSION_CAP` (20), `IP_DAILY_CALL_CAP` (100), `MAX_SESSIONS` (1000), `SESSION_TTL_SECONDS` (86400), `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_IPS`, and `COOKIE_SECURE` (0).
+Optional settings can be omitted or removed from `.env`: `SESSION_CALL_CAP` (30), `QLOO_CACHE_DIR` (`~/.cache/taste-truce/responses`), `QLOO_STATE_DIR` (`~/.local/state/taste-truce`), `MONTHLY_CALL_CAP` (8000 maximum), `MONTHLY_RESERVED_CALLS` (1000), `QLOO_CACHE_TTL_SECONDS` (0, no expiry), `HOST` (`127.0.0.1`), `PORT` (3000), `IP_DAILY_SESSION_CAP` (20), `IP_DAILY_CALL_CAP` (100), `MAX_SESSIONS` (1000), `SESSION_TTL_SECONDS` (86400), `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_IPS`, and `COOKIE_SECURE` (0).
 
-Warm both default dinner scenes before first use (uses the normal call budgets and default cache directory):
+Warm all three preset dinner scenes before first use (uses the normal call budgets and default cache directory):
 
 ```sh
 python3 prewarm.py
 ```
 
-The one-click swap replaces BTS with Miles Davis and shows actual changes, including when the shared pick stays the same. No popularity cap or trend bias override is applied.
+The replacement selector lets the user replace friend 2 with Hip-hop + sneakers (Kendrick Lamar + Nike) or K-pop + streetwear (BTS + Supreme), and shows actual changes, including an unchanged shared pick. No popularity cap or trend bias override is applied.
 
 ## Docker
 
@@ -82,3 +82,14 @@ Tests use synthetic data only. They cover maximin versus rank sum, incomplete co
 - `static/`: English interface and Leaflet map with OpenStreetMap attribution.
 
 MIT licensed. Qloo data is fetched at runtime; none is included in this repository.
+
+
+## Saved scenes and comparable concessions
+
+The first screen reads a private precomputed snapshot, shows its saved time, and compares popularity #1, each person's #1, a majority #1 when present, and the fair pick. Each column is the person's rank in the same candidate pool; unreturned ranks are unknown. The fair pick minimizes the worst rank, then rank sum. A fallback is explicitly labeled. Popularity is within the eligible no-signal sample, not the whole neighborhood. Seed contributions live in collapsed ranking details.
+
+One-click presets are Seongsu (the current default), Williamsburg, and the reproduced Williamsburg majority/minority variant. These are illustrative groups from four tried scenes: two original scenes and two preregistered group variants. Every displayed number is computed from actual provider results, and snapshots are not shipped in Git. A repeated verification of the same inputs is not a new scene. In this four-scene sample, the fair pick was popularity #1 twice and #2 twice; broader generalization is untested.
+
+`DEFAULT_SCENE` selects `seongsu`, `williamsburg` or `majority`. Run `python prewarm.py` with the server environment before opening the page. Saved scenes and response cache now default to no expiry. No initial POST or LLM request is needed. The first POST, rather than a GET, consumes a daily new-session slot. See [DEPLOY.md](DEPLOY.md) for persistence, cron, health, TTL, proxy and HTTPS cookie settings.
+
+For non-empty conditions, the planner receives the executed tool observation once and proposes a validated next tool. The panel labels this `observe → replan`; selecting a suggestion executes it. The local parser also suggests a follow-up from the actual remaining/excluded counts. The model does not assign scores or override ranks.

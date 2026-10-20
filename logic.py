@@ -95,3 +95,24 @@ def taste_contrast(picks, all_picks, popularity):
         'top3_overlap':len({e['id'] for e in picks[:3]} & {e['id'] for e in baseline[:3]}),
         'taste_count':len(picks), 'baseline_count':len(baseline), 'sample_count':len(sample),
         'pick_popularity_rank':pop_ranks.get(pick['id']), 'rows':rows}
+
+
+def concession_table(people, lists, baseline, pick):
+    """Every cell uses the same observed per-person candidate ranking."""
+    ranks=[{e['id']:i+1 for i,e in enumerate(rows)} for rows in lists]
+    rows=[]
+    def add(label, entity):
+        values=[r.get(entity['id']) for r in ranks]
+        known=[v for v in values if v is not None]
+        rows.append({'label':label,'id':entity['id'],'name':entity['name'],'ranks':values,
+                     'worst_rank':max(known) if len(known)==len(values) else None})
+    if baseline:add('Popularity #1',baseline[0])
+    for i,p in enumerate(people):
+        if lists[i]:add(p['name']+' #1',lists[i][0])
+    favorites=[rows[0]['id'] for rows in lists if rows]
+    for entity_id in dict.fromkeys(favorites):
+        count=favorites.count(entity_id)
+        if count>len(people)/2 and count>=2:
+            add('Majority #1 ('+str(count)+'/'+str(len(people))+')',next(e for es in lists for e in es if e['id']==entity_id))
+    add('Fair pick' if all(pick['observed']) else 'Group pick · rank-sum fallback',pick)
+    return rows

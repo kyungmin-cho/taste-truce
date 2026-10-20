@@ -44,10 +44,9 @@ class Sessions:
                 available=[k for k,v in self.rows.items() if not v['mutex'].locked()]
                 if not available:raise ValueError('All session slots are busy. Please retry later.')
                 victim=min(available,key=lambda k:self.rows[k]['at'])
-            if not self.qloo.daily_allow(ip,'sessions',self.daily):raise ValueError('Daily new-session limit reached. Please return tomorrow.')
             if victim:self.remove(victim)
             token=secrets.token_urlsafe(24)
-            self.rows[token]={'ip':ip,'at':time.time(),'mutex':threading.Lock()}
+            self.rows[token]={'ip':ip,'at':time.time(),'mutex':threading.Lock(),'counted':False}
             self.qloo.bind_session(token,ip)
             return token
 
@@ -59,4 +58,9 @@ class Sessions:
             row=self.get(token,ip)
             if not row:return None,'unknown'
             if not row['mutex'].acquire(blocking=False):return None,'busy'
+            if not row['counted']:
+                if not self.qloo.daily_allow(ip,'sessions',self.daily):
+                    row['mutex'].release()
+                    return None,'limit'
+                row['counted']=True
             return row['mutex'],None

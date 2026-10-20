@@ -23,8 +23,21 @@ class SessionTests(unittest.TestCase):
         third=self.sessions.issue('','ip2')
         self.assertEqual(len(self.sessions.rows),2);self.assertIsNone(self.sessions.get(one,'ip1'))
         self.assertNotIn(one,self.q.sessions);self.assertNotIn(one,self.q.session_ips)
-        with self.assertRaises(ValueError):self.sessions.issue('','ip1')
+        # Issuance never consumes the daily allowance.
+        self.assertIsNotNone(self.sessions.issue('','ip1'))
         self.assertIsNotNone(self.sessions.get(third,'ip2'))
+    def test_first_post_only_counts_once_and_limit_survives_restart(self):
+        import sqlite3
+        tokens=[self.sessions.issue('','ip') for _ in range(2)]
+        with sqlite3.connect(self.q.database) as db:self.assertEqual(db.execute('SELECT count(*) FROM ip_days').fetchone()[0],0)
+        for token in tokens:
+            for _ in range(2):
+                mutex,error=self.sessions.acquire(token,'ip');self.assertIsNone(error);mutex.release()
+        third=self.sessions.issue('','ip')
+        self.assertEqual(self.sessions.acquire(third,'ip')[1],'limit')
+        restarted=Sessions(Qloo());token=restarted.issue('','ip')
+        self.assertEqual(restarted.acquire(token,'ip')[1],'limit')
+
     def test_ip_daily_call_budget_survives_new_sessions_and_restart(self):
         one=self.sessions.issue('','ip');self.q.reserve(one)
         two=self.sessions.issue('','ip')
@@ -45,6 +58,31 @@ class SessionTests(unittest.TestCase):
         mutex.release()
         self.sessions.rows[one]['at']=0
         self.assertIsNone(self.sessions.get(one,'ip'))
+    def test_http_limit_keeps_page_scene_and_health_readable(self):
+        from scenes import save_scene
+        from unittest.mock import Mock
+        self.sessions.cap=20;self.sessions.daily=1
+        save_scene(self.q,'seongsu',{'status':'done','picks':[]})
+        app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
+        app.agent=Mock();app.agent.run.return_value={'status':'clarification','veto':{}}
+        thread=threading.Thread(target=app.serve_forever,daemon=True);thread.start()
+        def req(method,path,cookie=''):
+            c=http.client.HTTPConnection(*app.server_address);c.request(method,path,body='{}' if method=='POST' else None,headers={'Cookie':cookie});r=c.getresponse();data=r.read();headers=dict(r.getheaders());status=r.status;c.close();return status,headers,data
+        try:
+            cookies=[req('GET','/')[1]['Set-Cookie'].split(';')[0] for _ in range(5)]
+            self.assertEqual(req('POST','/api/plan',cookies[0])[0],200)
+            self.assertEqual(req('POST','/api/plan',cookies[0])[0],200)
+            self.assertEqual(req('POST','/api/plan',cookies[1])[0],429)
+            self.assertEqual(app.agent.run.call_count,2)
+            self.assertEqual(req('GET','/')[0],200)
+            status,_,data=req('GET','/scene/default');self.assertEqual(status,200);self.assertIn('saved_utc',json.loads(data)['result'])
+            self.assertFalse(json.loads(req('GET','/health')[2])['needs_new_calls'])
+            with patch.dict(os.environ,{'COOKIE_SECURE':'1'}):self.assertIn('; Secure',req('GET','/')[1]['Set-Cookie'])
+            app.agent.run.side_effect=BudgetError('Daily network call limit reached.')
+            response=req('POST','/api/plan',cookies[0]);self.assertEqual(response[0],200)
+            self.assertIn('Showing the saved default scene',response[2].decode())
+        finally:app.shutdown();app.server_close()
+
     def test_get_issues_cookie_and_unknown_posts_never_reach_agent(self):
         app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
         class FakeAgent:
@@ -67,5 +105,5 @@ class SessionTests(unittest.TestCase):
             self.assertEqual(request('GET','/vendor/leaflet/images/marker-icon.png')[0],200)
             self.assertEqual(request('GET','/vendor/leaflet/../../server.py')[0],404)
             self.assertEqual(request('GET','/')[0],200)
-            self.assertEqual(request('GET','/')[0],429)
+            self.assertEqual(request('GET','/')[0],200)
         finally:app.shutdown();app.server_close();thread.join()

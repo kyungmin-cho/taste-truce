@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 WORKDIR /app
-COPY server.py agent.py planner.py logic.py qloo.py sessions.py prewarm.py ./
+COPY server.py agent.py planner.py logic.py qloo.py sessions.py prewarm.py scenes.py ./
 COPY static ./static
 RUN useradd --create-home appuser && mkdir -p /data/cache /data/state && chown -R appuser:appuser /data
 USER appuser

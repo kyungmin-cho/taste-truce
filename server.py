@@ -22,6 +22,7 @@ load_env(Path(os.getenv('ENV_FILE',ROOT/'.env')))
 from agent import Agent, DEFAULT_PEOPLE
 from qloo import Qloo, QlooError, BudgetError
 from sessions import Sessions
+from scenes import PRESETS, SCENES_TRIED, default_scene, scene_body, save_scene, read_scene, health
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -40,16 +41,20 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         route=urlsplit(self.path).path
         if route=='/api/config':
-            return self.json_response(200,{'people':DEFAULT_PEOPLE,'session_call_cap':self.server.qloo.session_cap})
-        if route=='/health':return self.json_response(200,{'status':'ok'})
-        files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js'}
+            return self.json_response(200,{'people':DEFAULT_PEOPLE,'default_scene':default_scene(),'presets':{k:{'label':v['label'],**scene_body(k)} for k,v in PRESETS.items()},'scenes_tried':SCENES_TRIED})
+        if route=='/health':return self.json_response(200,health(self.server.qloo))
+        if route.startswith('/scene/'):
+            name=route.split('/')[-1]
+            result=read_scene(self.server.qloo,default_scene() if name=='default' else name)
+            return self.json_response(200 if result else 503,{'result':result,'error':None if result else 'Saved scene unavailable. Run prewarm.py.'})
+        files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js','/copy.js':'copy.js'}
         vendor=['leaflet.js','leaflet.css','LICENSE','images/layers.png','images/layers-2x.png','images/marker-icon.png','images/marker-icon-2x.png','images/marker-shadow.png']
         files.update({'/vendor/leaflet/'+name:'vendor/leaflet/'+name for name in vendor})
         if route not in files:return self.json_response(404,{'error':'Not found'})
         token=None
         if route=='/':
             try:token=self.server.sessions.issue(Sessions.token(self.headers.get('Cookie')),self.server.sessions.ip(self))
-            except ValueError as err:return self.json_response(429,{'error':str(err)})
+            except ValueError:pass
         file=ROOT/'static'/files[route];data=file.read_bytes()
         self.headers_for(200,(mimetypes.guess_type(file.name)[0] or 'text/plain')+('' if file.suffix=='.png' else '; charset=utf-8'),len(data))
         if token:self.send_header('Set-Cookie',f'taste_session={token}; HttpOnly; SameSite=Strict; Path=/'+('; Secure' if os.getenv('COOKIE_SECURE')=='1' else ''))
@@ -68,6 +73,7 @@ class Handler(BaseHTTPRequestHandler):
         token=Sessions.token(self.headers.get('Cookie'))
         mutex,error=self.server.sessions.acquire(token,self.server.sessions.ip(self))
         if error=='unknown':return self.json_response(403,{'error':'Open the home page to start a valid session.'})
+        if error=='limit':return self.json_response(429,{'error':'Daily new-session limit reached. The saved scene remains available.'})
         if error=='busy':return self.json_response(409,{'error':'A plan is already running in this session'})
         self.headers_for(200,'application/x-ndjson; charset=utf-8')
         self.end_headers();self.close_connection=True
@@ -80,22 +86,17 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError,ConnectionResetError):disconnected.set()
         try:
             result=self.server.agent.run(token,body,emit)
-            if (result['status']=='done' and result['people']==DEFAULT_PEOPLE and result['area']=='Seongsu'
-                and result['occasion']=='Dinner' and not any(result['veto'].values())):
-                self.server.qloo.save('/scene/default',{},result)
+            if result['status']=='done' and not any(result['veto'].values()):
+                for name in PRESETS:
+                    expected=scene_body(name)
+                    if all(result.get(k)==v for k,v in expected.items()):save_scene(self.server.qloo,name,result)
             emit({'event':'result','result':result})
         except BudgetError as err:
-            cached=self.server.qloo.cache/(self.server.qloo.signature('/scene/default',{})+'.json')
-            try:
-                item=json.loads(cached.read_text())
-                result=item['data']
-                result['notice']=str(err)+' Showing the saved default Seongsu scene; your edits were not applied.'
-                result['saved_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(item['saved']))
-                result['session_calls']=self.server.qloo.used(token)
-                emit({'event':'step','step':{'tool':'budget → cached default scene','entities':[result['saved_utc']],'count':len(result['picks']),'latency_ms':0,'cache':True}})
+            result=read_scene(self.server.qloo,default_scene())
+            if result:
+                result['notice']=str(err)+' Showing the saved default scene; your edits were not applied.'
                 emit({'event':'result','result':result})
-            except (OSError,ValueError,KeyError):
-                emit({'event':'error','message':str(err)+' No saved default scene is available yet.'})
+            else:emit({'event':'error','message':str(err)+' No saved default scene is available yet.'})
         except (QlooError,ValueError) as err:
             emit({'event':'error','message':str(err)})
         except Exception:

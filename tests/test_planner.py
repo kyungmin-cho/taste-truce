@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 from unittest.mock import patch
-from planner import choose_tools, local_tools, apply_tools, validate
+from planner import choose_tools, local_tools, apply_tools, validate, observe_replan
 
 class PlannerTests(unittest.TestCase):
     def test_common_phrasings_and_combined_conditions(self):
@@ -37,3 +37,23 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual(len(scene['people']),1)
         result,_,_=apply_tools(scene,{},local_tools('search farther and change to Williamsburg for coffee'),None)
         self.assertEqual((result['start_radius'],result['area'],result['occasion']),(3500,'Williamsburg NYC','Cafe'))
+
+class ObservationTests(unittest.TestCase):
+    def test_empty_text_never_calls_llm(self):
+        with patch.dict(os.environ,{'LLM_BASE_URL':'http://unused','LLM_API_KEY':'test','LLM_MODEL':'test'}),patch('urllib.request.urlopen') as network:
+            source,actions=choose_tools(' ',{})
+            self.assertEqual(actions,[{'name':'plan','arguments':{}}]);network.assert_not_called()
+    def test_local_next_steps_match_actual_observation(self):
+        with patch.dict(os.environ,{'LLM_BASE_URL':''}):
+            _,steps=observe_replan('no bars',{},[],{'remaining_count':30,'radius':2000,'nothing_matched':True})
+            self.assertEqual(steps[0]['name'],'exclude_tags')
+            _,steps=observe_replan('quieter',{},[],{'remaining_count':6,'radius':2000,'nothing_matched':False})
+            self.assertEqual(steps[0]['arguments'],{'radius':5000})
+    def test_llm_receives_executed_tool_result_and_returns_valid_suggestion(self):
+        answer={'choices':[{'message':{'tool_calls':[{'function':{'name':'widen_radius','arguments':'{"radius":5000}'}}]}}]}
+        config={'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}
+        with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(answer).encode())) as network:
+            source,steps=observe_replan('quieter',{},[{'name':'exclude_tags','arguments':{'tags':['Loud']}}],{'remaining_count':6,'radius':2000,'nothing_matched':False})
+            self.assertEqual(source,'LLM planner');self.assertEqual(steps[0]['name'],'widen_radius')
+            messages=json.loads(network.call_args[0][0].data)['messages']
+            self.assertEqual(messages[-1]['role'],'tool');self.assertEqual(json.loads(messages[-1]['content'])['remaining_count'],6)
