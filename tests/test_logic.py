@@ -41,6 +41,21 @@ class ConsensusTests(unittest.TestCase):
         self.assertTrue(ambiguity([{'name':'Example'},{'name':'Example'}],'Example'))
         self.assertFalse(ambiguity([{'name':'Example'},{'name':'Something else'}],'Example'))
 
+class ConstraintTests(unittest.TestCase):
+    def test_recorded_price_quiet_and_vegetarian_are_required(self):
+        e=dict(place('a'),price_level=2)
+        self.assertTrue(eligible(e,'Dinner',{'max_price_level':2}))
+        self.assertFalse(eligible(place('a'),'Dinner',{'max_price_level':2}))
+        self.assertFalse(eligible(e,'Dinner',{'vegetarian':True}))
+        e['tags'].append({'id':'urn:tag:offerings:place:vegetarian_options','name':'Vegetarian meals'})
+        self.assertTrue(eligible(e,'Dinner',{'vegetarian':True}))
+        e['tags'].append({'id':'urn:tag:noise_level:qloo:loud','name':'Loud'})
+        self.assertFalse(eligible(e,'Dinner',{'tags':['Loud']}))
+    def test_first_rank_never_says_zero_place_drop(self):
+        e=place('a');pick=consensus([e],[[e]])[0]
+        c=concession({'name':'A','seeds':[{'query':'Film'}]},[e],pick,0)
+        self.assertIn('also #1',c['text']);self.assertNotIn('0-place',c['text'])
+
 class ContrastTests(unittest.TestCase):
     def test_overlap_rank_shifts_and_missing_popularity_rank_are_honest(self):
         from logic import taste_contrast

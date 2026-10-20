@@ -25,7 +25,8 @@ class LargePoolQloo(FakeQloo):
         if path=='/search':
             return {'results':[{'entity_id':params['query'],'name':params['query']}]},False
         if 'filter.results.entities' in params:
-            raise AssertionError('The API cannot return all candidates of a pool larger than 50')
+            ids=params['filter.results.entities'].split(',');assert len(ids)<=50
+            return {'results':{'entities':[{'entity_id':i,'name':i,'query':{'affinity':1/(int(i)+1)}} for i in ids]}},False
         self_ceiling=params['take']
         assert self_ceiling<=50
         start=0 if params.get('signal.interests.entities','A')=='A' else 50
@@ -56,12 +57,16 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(sorted({(p['filter.location.radius'],p['take']) for p in params}),[(100,10),(2000,30),(3500,40)])
         self.assertEqual(result['pool_size'],6)
 
-    def test_large_disjoint_pool_uses_supported_take_and_marks_unknown_ranks(self):
+    def test_large_disjoint_pool_is_bounded_and_rescored_for_maximin(self):
         q=LargePoolQloo();people=[{'name':name,'seeds':[{'query':name,'type':'movie'}]} for name in ['A','B']]
         result=Agent(q).run('test',{'people':people},lambda _:None)
-        self.assertEqual(result['method'],'rank-sum')
-        self.assertEqual(result['pool_size'],100)
-        self.assertIn(False,result['picks'][0]['observed'])
+        self.assertEqual(result['method'],'maximin-rank')
+        self.assertEqual(result['pool_size'],50)
+        self.assertTrue(all(result['picks'][0]['observed']))
+        pools=[set(p['filter.results.entities'].split(',')) for _,p in q.requests if 'filter.results.entities' in p]
+        self.assertEqual(pools[0],pools[1])
+        self.assertTrue(set(map(str,range(25))).issubset(pools[0]))
+        self.assertTrue(set(map(str,range(50,75))).issubset(pools[0]))
         self.assertEqual(sum(path=='/v2/insights' for path,_ in q.requests),5)
 
     def test_incomplete_rescore_uses_larger_rank_sum_retrieval(self):
@@ -74,5 +79,42 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(result['status'],'clarification')
         self.assertEqual(len(result['questions'][0]['options']),2)
         self.assertTrue(all(path=='/search' for path,_ in q.requests))
+
+class ReviewRegressionTests(unittest.TestCase):
+    def test_single_inexact_place_is_clarified_and_can_be_skipped(self):
+        class Inexact(FakeQloo):
+            def request(self,session,path,params):
+                if path=='/search' and params['query']=='Unknown palace':
+                    self.requests.append((path,params))
+                    return {'results':[{'entity_id':'wrong','name':'A restaurant'}]},False
+                return super().request(session,path,params)
+        q=Inexact();body={'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'},{'query':'Unknown palace','type':'place'}]}]}
+        result=Agent(q).run('s',body,lambda _:None)
+        self.assertEqual(result['status'],'clarification');self.assertEqual(len(result['questions'][0]['options']),1)
+        self.assertTrue(all(path=='/search' for path,_ in q.requests))
+        result=Agent(q).run('s',{**body,'choices':{'0:1':'skip'}},lambda _:None)
+        self.assertEqual(result['status'],'done');self.assertEqual(len(result['people'][0]['seeds']),1)
+        self.assertEqual(result['choices'],{'0:0':'seed'})
+    def test_no_matching_veto_reports_no_change(self):
+        result=Agent(FakeQloo()).run('s',{'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'}]}],'veto_text':'no bars please'},lambda _:None)
+        self.assertEqual(result['excluded_count'],0);self.assertEqual(result['notice'],'Nothing matched, nothing changed.')
+    def test_unknown_intent_records_parser_and_does_not_call_qloo(self):
+        events=[];q=FakeQloo()
+        with self.assertRaises(ValueError):Agent(q).run('s',{'veto_text':'something completely unknown'},events.append)
+        self.assertEqual(q.requests,[]);self.assertIn('Local intent parser',events[0]['step']['tool'])
+
+    def test_friend_request_pauses_before_network(self):
+        q=FakeQloo();result=Agent(q).run('s',{'veto_text':'add a vegetarian friend'},lambda _:None)
+        self.assertEqual(result['status'],'friend_taste');self.assertEqual(len(result['people']),4);self.assertEqual(q.requests,[])
+    def test_contributions_are_attached_by_seed_and_person(self):
+        class Explain(FakeQloo):
+            def request(self,session,path,params):
+                data,hit=super().request(session,path,params)
+                if 'filter.results.entities' in params:
+                    assert params['feature.explainability']=='true'
+                    for e in data['results']['entities']:e['query']['explainability']={'signal.interests.entities':[{'entity_id':'seed','score':.75}]}
+                return data,hit
+        result=Agent(Explain()).run('s',{'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'}]}]},lambda _:None)
+        self.assertEqual(result['concessions'][0]['contributions'],[{'seed':'Film','score':.75}])
 
 if __name__=='__main__':unittest.main()
