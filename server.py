@@ -1,12 +1,10 @@
 """Small local HTTP app; all provider credentials stay in this process."""
 import argparse
-from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import mimetypes
 import os
 from pathlib import Path
-import secrets
 import threading
 import time
 from urllib.parse import urlsplit
@@ -23,6 +21,7 @@ def load_env(path):
 load_env(Path(os.getenv('ENV_FILE',ROOT/'.env')))
 from agent import Agent, DEFAULT_PEOPLE
 from qloo import Qloo, QlooError, BudgetError
+from sessions import Sessions
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -33,6 +32,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
         self.send_header('Cache-Control','no-store')
+        self.send_header('Connection','close')
+        self.close_connection=True
         if length is not None:self.send_header('Content-Length',str(length))
     def json_response(self,status,data):
         payload=json.dumps(data).encode();self.headers_for(status,'application/json',len(payload));self.end_headers();self.wfile.write(payload)
@@ -42,9 +43,17 @@ class Handler(BaseHTTPRequestHandler):
             return self.json_response(200,{'people':DEFAULT_PEOPLE,'session_call_cap':self.server.qloo.session_cap})
         if route=='/health':return self.json_response(200,{'status':'ok'})
         files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js'}
+        vendor=['leaflet.js','leaflet.css','LICENSE','images/layers.png','images/layers-2x.png','images/marker-icon.png','images/marker-icon-2x.png','images/marker-shadow.png']
+        files.update({'/vendor/leaflet/'+name:'vendor/leaflet/'+name for name in vendor})
         if route not in files:return self.json_response(404,{'error':'Not found'})
+        token=None
+        if route=='/':
+            try:token=self.server.sessions.issue(Sessions.token(self.headers.get('Cookie')),self.server.sessions.ip(self))
+            except ValueError as err:return self.json_response(429,{'error':str(err)})
         file=ROOT/'static'/files[route];data=file.read_bytes()
-        self.headers_for(200,mimetypes.guess_type(file.name)[0]+'; charset=utf-8',len(data));self.end_headers();self.wfile.write(data)
+        self.headers_for(200,(mimetypes.guess_type(file.name)[0] or 'text/plain')+('' if file.suffix=='.png' else '; charset=utf-8'),len(data))
+        if token:self.send_header('Set-Cookie',f'taste_session={token}; HttpOnly; SameSite=Strict; Path=/'+('; Secure' if os.getenv('COOKIE_SECURE')=='1' else ''))
+        self.end_headers();self.wfile.write(data)
     def do_POST(self):
         if self.path!='/api/plan':return self.json_response(404,{'error':'Not found'})
         origin=self.headers.get('Origin')
@@ -56,19 +65,11 @@ class Handler(BaseHTTPRequestHandler):
             body=json.loads(self.rfile.read(length))
             if not isinstance(body,dict):raise ValueError()
         except (ValueError,TypeError):return self.json_response(400,{'error':'Invalid plan request'})
-        jar=cookies.SimpleCookie()
-        try:jar.load(self.headers.get('Cookie',''))
-        except cookies.CookieError:pass
-        token=jar.get('taste_session')
-        token=token.value if token else ''
-        with self.server.session_lock:
-            if token not in self.server.sessions:
-                token=secrets.token_urlsafe(24);self.server.sessions.add(token)
-            mutex=self.server.plan_locks.setdefault(token,threading.Lock())
-        if not mutex.acquire(blocking=False):return self.json_response(409,{'error':'A plan is already running in this session'})
+        token=Sessions.token(self.headers.get('Cookie'))
+        mutex,error=self.server.sessions.acquire(token,self.server.sessions.ip(self))
+        if error=='unknown':return self.json_response(403,{'error':'Open the home page to start a valid session.'})
+        if error=='busy':return self.json_response(409,{'error':'A plan is already running in this session'})
         self.headers_for(200,'application/x-ndjson; charset=utf-8')
-        self.send_header('Connection','close')
-        self.send_header('Set-Cookie',f'taste_session={token}; HttpOnly; SameSite=Strict; Path=/')
         self.end_headers();self.close_connection=True
         write_lock=threading.Lock()
         disconnected=threading.Event()
@@ -80,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             result=self.server.agent.run(token,body,emit)
             if (result['status']=='done' and result['people']==DEFAULT_PEOPLE and result['area']=='Seongsu'
-                and result['occasion']=='Dinner' and not result['veto']['excluded'] and not result['veto']['no_bars']):
+                and result['occasion']=='Dinner' and not any(result['veto'].values())):
                 self.server.qloo.save('/scene/default',{},result)
             emit({'event':'result','result':result})
         except BudgetError as err:
@@ -104,6 +105,6 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--port',type=int,default=int((os.getenv('PORT') or '3000')));parser.add_argument('--host',default=(os.getenv('HOST') or '127.0.0.1'));args=parser.parse_args()
     server=ThreadingHTTPServer((args.host,args.port),Handler)
-    server.qloo=Qloo();server.agent=Agent(server.qloo);server.sessions=set();server.plan_locks={};server.session_lock=threading.Lock()
+    server.qloo=Qloo();server.agent=Agent(server.qloo);server.sessions=Sessions(server.qloo)
     print(f'Taste Truce running at http://localhost:{args.port}',flush=True)
     server.serve_forever()

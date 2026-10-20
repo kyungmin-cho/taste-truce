@@ -1,6 +1,5 @@
 """Server-only Qloo transport with shared rate limiting and a private disk cache."""
 import hashlib
-import importlib.util
 import json
 import os
 import sqlite3
@@ -39,18 +38,34 @@ class Qloo:
         self.lock = threading.RLock()
         self.starts = []
         self.sessions = {}
-        self.key_locks = {}
-        self.logger = None
-        logger_path = os.getenv('QLOO_PROBE_LOGGER')
-        if logger_path:
-            spec = importlib.util.spec_from_file_location('private_probe', logger_path)
-            self.logger = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(self.logger)
-            # Import previous responses by exact request signature, without another call.
-            for row in (json.loads(self.logger.LEDGER.read_text()) if os.getenv('QLOO_PROBE_IMPORT') == '1' else []):
-                if row.get('status') == 200 and row.get('raw_file'):
-                    data = json.loads((self.logger.OUT/row['raw_file']).read_text())
-                    self.save(row['path'], row['params'], data)
+        self.key_locks = [threading.Lock() for _ in range(128)]
+        self.ip_cap = int(os.getenv('IP_DAILY_CALL_CAP') or '100')
+        self.session_ips = {}
+        with sqlite3.connect(self.database) as db:
+            db.execute('CREATE TABLE IF NOT EXISTS ip_days (day TEXT, ip TEXT, kind TEXT, used INTEGER, PRIMARY KEY(day,ip,kind))')
+
+    def bind_session(self, token, ip):
+        with self.lock:self.session_ips[token]=ip
+
+    def forget_session(self, token):
+        with self.lock:
+            self.sessions.pop(token,None);self.session_ips.pop(token,None)
+
+    def daily_allow(self, ip, kind, cap):
+        with sqlite3.connect(self.database,timeout=10) as db:
+            db.execute('BEGIN IMMEDIATE')
+            day=time.strftime('%Y-%m-%d',time.gmtime())
+            return self._daily(db, day, ip, kind, cap)
+
+    @staticmethod
+    def _daily(db, day, ip, kind, cap):
+        digest=hashlib.sha256(ip.encode()).hexdigest()
+        db.execute('DELETE FROM ip_days WHERE day<?',(day,))
+        db.execute('INSERT OR IGNORE INTO ip_days VALUES (?,?,?,0)',(day,digest,kind))
+        used=db.execute('SELECT used FROM ip_days WHERE day=? AND ip=? AND kind=?',(day,digest,kind)).fetchone()[0]
+        if used>=cap:return False
+        db.execute('UPDATE ip_days SET used=used+1 WHERE day=? AND ip=? AND kind=?',(day,digest,kind))
+        return True
 
     def signature(self, path, params):
         return hashlib.sha256(json.dumps([path, {k:str(v) for k,v in params.items()}], sort_keys=True).encode()).hexdigest()
@@ -86,6 +101,9 @@ class Qloo:
                     delay = max(0, starts[-1]+0.30-now) if starts else 0
                     if len(starts)>=4:delay=max(delay, starts[0]+1.25-now)
                     if not delay:
+                        ip=self.session_ips.get(session)
+                        if ip and not self._daily(db,time.strftime('%Y-%m-%d',time.gmtime()),ip,'calls',self.ip_cap):
+                            raise BudgetError('Daily network call limit reached. Cached scenes remain available.')
                         db.execute('UPDATE months SET used=used+1 WHERE month=?', (month,))
                         db.execute('INSERT INTO starts VALUES (?)', (now,))
                         self.sessions[session] = self.sessions.get(session, 0)+1
@@ -94,8 +112,7 @@ class Qloo:
 
     def request(self, session, path, params):
         digest = self.signature(path, params)
-        with self.lock:
-            mutex = self.key_locks.setdefault(digest, threading.Lock())
+        mutex = self.key_locks[int(digest[:8],16) % len(self.key_locks)]
         with mutex:
             cached = self.cache/(digest+'.json')
             if cached.exists():
@@ -116,20 +133,15 @@ class Qloo:
                     except (ValueError, KeyError):
                         pass
                 raise
-            if self.logger:
-                data = self.logger.call('app-'+digest[:10], path, params)
-                if not data or (data.get('errors') or not data.get('success', True)):
-                    raise QlooError('Qloo request failed; see the private call ledger.')
-            else:
-                req = urllib.request.Request(self.base+path+'?'+urllib.parse.urlencode(params), headers={'X-Api-Key': self.key, 'Accept': 'application/json'})
-                try:
-                    with urllib.request.urlopen(req, timeout=12) as response:
-                        data = json.load(response)
-                except urllib.error.HTTPError as err:
-                    raise QlooError(f'Qloo returned HTTP {err.code}. Please retry later.') from None
-                except (OSError, ValueError):
-                    raise QlooError('Qloo could not be reached. Please retry later.') from None
-                if (data.get('errors') or not data.get('success', True)):
-                    raise QlooError('Qloo could not complete this request.')
+            req = urllib.request.Request(self.base+path+'?'+urllib.parse.urlencode(params), headers={'X-Api-Key': self.key, 'Accept': 'application/json'})
+            try:
+                with urllib.request.urlopen(req, timeout=12) as response:
+                    data = json.load(response)
+            except urllib.error.HTTPError as err:
+                raise QlooError(f'Qloo returned HTTP {err.code}. Please retry later.') from None
+            except (OSError, ValueError):
+                raise QlooError('Qloo could not be reached. Please retry later.') from None
+            if (data.get('errors') or not data.get('success', True)):
+                raise QlooError('Qloo could not complete this request.')
             self.save(path, params, data)
             return data, False
