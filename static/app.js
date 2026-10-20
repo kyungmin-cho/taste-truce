@@ -3,28 +3,28 @@ const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let people=[],result=null,choices={},veto={excluded:[],no_bars:false},map=null,pins=[],busy=false,steps=[];
 function renderPeople(){
-  el('people').innerHTML=people.map((p,i)=>`<article class="person" style="--color:${colors[i]}"><div class="person-head"><span class="avatar">${i+1}</span><h3>${esc(p.name)}</h3></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"></div>`).join('')}</article>`).join('');
+  el('people').innerHTML=people.map((p,i)=>`<article class="person" style="--color:${colors[i]}"><div class="person-head"><span class="avatar">${i+1}</span><label class="sr-only" for="name-${i}">Friend ${i+1} name</label><input id="name-${i}" class="friend-name" data-name="${i}" value="${esc(p.name)}" maxlength="60"><button class="quiet" data-remove="${i}" aria-label="Remove ${esc(p.name)}" ${people.length===1?'disabled':''}>×</button></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"><button class="quiet" data-removeseed="${i}:${j}" ${p.seeds.length===1?'disabled':''}>Remove taste</button></div>`).join('')}<button class="quiet" data-addseed="${i}" ${p.seeds.length===3?'disabled':''}>+ Add taste</button></article>`).join('');
 }
 el('people').addEventListener('input',event=>{
-  const node=event.target;if(node.dataset.field){people[+node.dataset.person].seeds[+node.dataset.seed][node.dataset.field]=node.value;choices={};}
+  const node=event.target;if(node.dataset.name!==undefined){people[+node.dataset.name].name=node.value;return;}if(node.dataset.field){people[+node.dataset.person].seeds[+node.dataset.seed][node.dataset.field]=node.value;choices={};}
 });
 function addStep(row){
   steps.push(row);el('step-count').textContent=String(steps.length).padStart(2,'0');
   if(steps.length===1)el('steps').innerHTML='';
   const li=document.createElement('li');
   const names=row.entities||[];
-  li.innerHTML=`<strong>${esc(row.tool)}</strong><small>${esc(names.slice(0,3).join(' · '))}${names.length>3?` · +${names.length-3} entities`:''}</small><div class="step-meta"><span>${row.count} returned</span><span>${(row.latency_ms/1000).toFixed(2)}s</span>${'cache' in row?`<span>${row.cache?'CACHE':'LIVE'}</span>`:''}</div>${names.length>3?`<details><summary>Entity IDs</summary><small>${names.map(esc).join('<br>')}</small></details>`:''}`;
-  el('steps').append(li);li.scrollIntoView({block:'nearest',behavior:'smooth'});
+  li.innerHTML=`<strong>${esc(row.tool)}</strong><small>${esc(names.slice(0,3).join(' · '))}${names.length>3?` · +${names.length-3} entities`:''}</small><div class="step-meta"><span>${row.count} returned</span><span>${(row.latency_ms/1000).toFixed(2)}s</span>${'cache' in row?`<span>${typeof row.cache==='string'?'STALE · BUDGET':(row.cache?'CACHE':'LIVE')}</span>`:''}</div>${names.length>3?`<details><summary>Entity IDs</summary><small>${names.map(esc).join('<br>')}</small></details>`:''}`;
+  el('steps').append(li);el('steps').scrollTop=el('steps').scrollHeight;
 }
 function setBusy(value){
   busy=value;el('plan').disabled=value;
-  document.querySelectorAll('#veto-form button,#shortlist button,#questions button').forEach(b=>b.disabled=value);
+  document.querySelectorAll('#veto-form button,#shortlist button,#questions button,#people input,#people select,#people button,#add-friend,#area,#occasion,#radius,#share').forEach(b=>b.disabled=value);
 }
 async function plan(vetoText=''){
   if(busy)return;
   setBusy(true);steps=[];el('step-count').textContent='00';el('steps').innerHTML='';el('questions').hidden=true;
-  el('results').hidden=true;el('status').textContent='Finding the overlap between three worlds…';
-  const body={people,choices,area:el('area').value,occasion:el('occasion').value,veto,veto_text:vetoText,current_pick:result?.picks?.[0]?.id};
+  el('results').hidden=true;el('status').textContent=`Reading ${people.length} taste signals…`;performance.mark('plan-start');
+  const body={people,choices,start_radius:Number(el('radius').value),area:el('area').value,occasion:el('occasion').value,veto,veto_text:vetoText,current_pick:result?.picks?.[0]?.id};
   try{
     const response=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     if(!response.ok)throw new Error((await response.json()).error||'Could not start a plan.');
@@ -39,14 +39,14 @@ async function plan(vetoText=''){
         if(event.event==='result'){
           finished=true;veto=event.result.veto;
           if(event.result.status==='clarification'){showQuestions(event.result.questions);el('status').textContent='A name needs a little more context.';}
-          else{result=event.result;el('taste-off').checked=false;renderResult();el('status').textContent=`${result.pool_size} eligible places · ${result.session_calls} session calls`;}
+          else{result=event.result;el('taste-off').checked=false;renderResult();el('results').scrollIntoView({block:'start',behavior:'instant'});performance.mark('result-rendered');requestAnimationFrame(()=>requestAnimationFrame(()=>performance.mark('meaningful-render')));el('status').textContent=result.notice||`${result.pool_size} eligible places · ${result.session_calls} session calls`;}
         }
       }
       if(done)break;
     }
     if(!finished)throw new Error('The connection ended before a plan was ready. Please retry.');
   }catch(err){el('status').textContent=err.message;}
-  finally{setBusy(false);}
+  finally{setBusy(false);el('add-friend').disabled=people.length>=5;document.querySelectorAll('[data-remove]').forEach(b=>b.disabled=people.length===1);document.querySelectorAll('[data-addseed]').forEach(b=>b.disabled=people[+b.dataset.addseed].seeds.length===3);document.querySelectorAll('[data-removeseed]').forEach(b=>b.disabled=people[+b.dataset.removeseed.split(':')[0]].seeds.length===1);}
 }
 function showQuestions(questions){
   const question=questions[0];el('questions').hidden=false;
@@ -64,8 +64,8 @@ function drawMap(off){
     const icon=L.divIcon({className:'',html:`<div class="pin ${shared?'consensus-pin':''}" style="background:${color};width:30px;height:30px">${label}</div>`,iconSize:[shared?36:30,shared?36:30],iconAnchor:[15,15]});
     const marker=L.marker(point,{icon,zIndexOffset:shared?1000:0}).addTo(map).bindPopup(`<strong>${esc(e.name)}</strong><br>${esc(e.genre)}<br>${esc(e.address)}`);pins.push(marker);
   }
-  if(off)result.baseline.forEach((e,i)=>pin(e,'#819075',i+1));
-  else{result.personal.forEach((rows,i)=>rows.slice(0,5).forEach((e,j)=>pin(e,colors[i],j+1)));pin(result.picks[0],'#20332b','✳',true);}
+  if(off)result.baseline.forEach((e,i)=>pin(e,result.picks.some(p=>p.id===e.id)?'#b5bbb2':'#c77545',i+1));
+  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,colors[i],j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,result.baseline.some(p=>p.id===e.id)?'#b5bbb2':'#548739',i+2));pin(result.picks[0],'#20332b','✳',true);}
   if(points.length)map.fitBounds(points,{padding:[35,35],maxZoom:15});
 }
 function renderResult(){
@@ -73,6 +73,7 @@ function renderResult(){
   const pick=result.picks[0];
   el('pick-name').textContent=off?'The popularity perspective':pick.name;
   el('fairness').textContent=off?`${result.baseline.length} baseline places`:(result.method==='maximin-rank'?`Everyone within top ${pick.worst_rank} of ${result.pool_size}`:'Rank-sum fallback · missing ranks penalized');
+  renderContrast(off);
   el('overlap').textContent=`${result.overlap}/${result.overlap_denominator} overlap with popularity`;
   el('timing').textContent=`${(result.elapsed_ms/1000).toFixed(2)}s · ${result.radius/1000} km`;
   el('legend').innerHTML=off?'<span><i style="background:#819075"></i>Popularity · taste off</span>':result.people.map((p,i)=>`<span><i style="background:${colors[i]}"></i>${esc(p.name)}</span>`).join('')+'<span><i style="background:#20332b"></i>Our shared pick</span>';
@@ -81,7 +82,7 @@ function renderResult(){
   el('narration').textContent=result.narration||'';
   el('list-title').textContent=off?'Popularity baseline':'The common ground shortlist';
   const rows=off?result.baseline:result.picks;
-  el('shortlist').innerHTML=rows.map((e,i)=>`<article class="place"><span class="num">${String(i+1).padStart(2,'0')}</span><div><strong>${esc(e.name)}</strong><small>${esc(e.genre)} · ${esc(e.address)}</small></div><div class="rank-pills">${off?`<span style="--color:#728d4c">Popularity ${typeof e.popularity==='number'?e.popularity.toFixed(3):'n/a'}</span>`:e.ranks.map((r,j)=>`<span style="--color:${colors[j]}">${e.observed[j]?'#'+r:'—'}</span>`).join('')}</div><button data-veto="${esc(e.id)}" aria-label="Veto ${esc(e.name)}">Veto</button></article>`).join('');
+  el('shortlist').innerHTML=rows.map((e,i)=>`<article class="place ${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'shared':'changed'}"><span class="num">${String(i+1).padStart(2,'0')}</span><div><strong>${esc(e.name)}</strong><small>${esc(e.genre)} · ${esc(e.address)}</small><small class="change-label">${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'In both top 10s':(off?'Taste leaves this out':'Taste brings this in')}</small></div><div class="rank-pills">${off?`<span style="--color:#728d4c">Popularity ${typeof e.popularity==='number'?e.popularity.toFixed(3):'n/a'}</span>`:e.ranks.map((r,j)=>`<span style="--color:${colors[j]}">${e.observed[j]?'#'+r:'—'}</span>`).join('')}</div><button data-veto="${esc(e.id)}" aria-label="Veto ${esc(e.name)}">Veto</button></article>`).join('');
   el('shortlist').querySelectorAll('button').forEach(button=>button.onclick=()=>{veto.excluded=[...new Set([...veto.excluded,button.dataset.veto])];plan();});
   requestAnimationFrame(()=>drawMap(off));
 }
@@ -89,6 +90,18 @@ el('plan').onclick=()=>plan();
 el('taste-off').onchange=()=>{if(result)renderResult();};
 el('veto-form').onsubmit=event=>{event.preventDefault();const text=el('veto').value.trim();if(text){el('veto').value='';plan(text);}};
 el('reset').onclick=()=>{veto={excluded:[],no_bars:false};plan();};
-el('area').onchange=()=>{choices={};veto={excluded:[],no_bars:false};el('status').textContent=`Fri 7 p.m. · ${el('area').value} · ${el('occasion').value} · 3 friends`;};
-el('occasion').onchange=()=>{veto={excluded:[],no_bars:false};el('status').textContent=`Fri 7 p.m. · ${el('area').value} · ${el('occasion').value} · 3 friends`;};
-fetch('/api/config').then(r=>r.json()).then(config=>{people=config.people;renderPeople();}).catch(()=>{el('status').textContent='Could not load the scene. Reload to retry.';});
+
+function resetScene(){choices={};veto={excluded:[],no_bars:false};result=null;el('results').hidden=true;el('questions').hidden=true;el('friend-count').textContent=`${people.length} friends`;el('status').textContent=`Fri 7 p.m. · ${el('area').value} · ${el('occasion').value} · ${people.length} friends`;el('add-friend').disabled=people.length>=5;}
+el('people').addEventListener('click',event=>{const add=event.target.closest('[data-addseed]'),remove=event.target.closest('[data-removeseed]');if(!busy&&add&&people[+add.dataset.addseed].seeds.length<3){people[+add.dataset.addseed].seeds.push({query:'',type:'artist'});resetScene();renderPeople();return;}if(!busy&&remove){const [i,j]=remove.dataset.removeseed.split(':').map(Number);if(people[i].seeds.length>1){people[i].seeds.splice(j,1);resetScene();renderPeople();}return;}const button=event.target.closest('[data-remove]');if(button&&!busy&&people.length>1){people.splice(+button.dataset.remove,1);resetScene();renderPeople();}});
+el('add-friend').onclick=()=>{if(!busy&&people.length<5){people.push({name:`Friend ${people.length+1}`,seeds:[{query:'',type:'movie'}]});resetScene();renderPeople();el(`seed-${people.length-1}-0`).focus();}};
+for(const id of ['area','occasion','radius'])el(id).onchange=resetScene;
+function sceneData(){return {v:1,people:people.map(p=>({name:p.name,seeds:p.seeds.map(s=>({query:s.query,type:s.type}))})),area:el('area').value,occasion:el('occasion').value,start_radius:Number(el('radius').value)};}
+function encodeScene(scene){return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(scene)))).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');}
+function decodeScene(hash){const text=hash.replace(/^#scene=/,'').replaceAll('-','+').replaceAll('_','/');if(text.length>12000)throw Error('Scene link is too long.');const scene=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(text),c=>c.charCodeAt(0))));if(scene.v!==1||!Array.isArray(scene.people)||scene.people.length<1||scene.people.length>5||!['Seongsu','Williamsburg NYC'].includes(scene.area)||!['Dinner','Cafe','Drinks'].includes(scene.occasion)||![100,2000].includes(scene.start_radius))throw Error('Invalid scene link.');for(const p of scene.people){if(typeof p.name!=='string'||!p.name.trim()||p.name.length>60||!Array.isArray(p.seeds)||p.seeds.length<1||p.seeds.length>3)throw Error('Invalid friend.');for(const s of p.seeds){if(typeof s.query!=='string'||!s.query.trim()||s.query.length>120||!['movie','artist','brand','place','book','tv_show'].includes(s.type))throw Error('Invalid taste seed.');}}return scene;}
+el('share').onclick=async()=>{try{const url=new URL(location.href);url.hash='scene='+encodeScene(sceneData());history.replaceState(null,'',url);await navigator.clipboard.writeText(url.href);el('share-status').textContent='Scene link copied';}catch{el('share-status').textContent='Copy the scene link from the address bar';}};
+function renderContrast(off){
+ const c=result.contrast,rank=c.pick_popularity_rank,added=c.rows.filter(r=>r.change==='added'),removed=c.rows.filter(r=>r.change==='removed');
+ const list=rows=>rows.map(r=>`<span><b>${esc(r.name)}</b> · ${esc(r.genre)}<small>Popularity ${r.popularity_rank?'#'+r.popularity_rank:'not returned'} → Taste ${r.taste_rank?'#'+r.taste_rank:'not in candidate pool'}</small><small>${esc(r.tags.filter(t=>/urn:tag:(ambience|culinary_style|offerings|service_type):/.test(t.id)).slice(0,3).map(t=>t.name).join(' · ')||'No descriptive tags recorded')}</small></span>`).join('');
+ el('contrast').innerHTML=`<div class="decision"><span>THE DECISION QLOO CHANGED</span><strong>${esc(result.picks[0].name)}</strong><div>Popularity ${rank?'#'+rank:'outside the returned sample'} → Taste #1</div><small>Popularity rank within ${c.sample_count} eligible no-signal results · group ranks within ${result.pool_size} candidates</small></div><div class="contrast-summary">Top 3: ${c.top3_overlap}/${Math.min(3,c.taste_count,c.baseline_count)} shared · Top 10: ${c.overlap} shared, ${added.length} added, ${removed.length} left out</div><div class="delta-columns"><div><h4>+ Taste brings in</h4>${list(added)||'No additions'}</div><div><h4>− Taste leaves out</h4>${list(removed)||'No removals'}</div></div><small>Overlapping shortlist rows are dimmed. ${off?'Orange pins mark places left out by taste.':'Switch Taste off to inspect the popularity sample.'}</small>`;
+}
+fetch('/api/config').then(r=>r.json()).then(config=>{people=config.people;if(location.hash.startsWith('#scene=')){const scene=decodeScene(location.hash);people=scene.people;el('area').value=scene.area;el('occasion').value=scene.occasion;el('radius').value=scene.start_radius;}resetScene();renderPeople();plan();}).catch(err=>{el('status').textContent=err.message||'Could not load the scene. Reload to retry.';});

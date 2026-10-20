@@ -4,13 +4,13 @@
 <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><script defer src="/app.js"></script></head>
 <body><header><a class="brand" href="/">taste truce<span class="brand-dot">✳</span></a><span class="header-note">Different worlds. One table.</span><span class="qloo-badge">POWERED BY QLOO</span></header>
 <main><section class="workspace"><div class="eyebrow">THE GROUP CHAT ENDS HERE</div><h1>Meet in the <em>middle.</em></h1><p class="intro">Your films, playlists and favorite brands have a place at the table.</p>
-<div class="scene-bar"><span class="scene-time">FRI <strong>7 p.m.</strong></span><label class="sr-only" for="area">Neighborhood</label><select id="area"><option>Seongsu</option><option>Williamsburg NYC</option></select><label class="sr-only" for="occasion">Occasion</label><select id="occasion"><option>Dinner</option><option>Cafe</option><option>Drinks</option></select><span id="friend-count">3 friends</span></div>
-<div id="people" class="people"></div>
+<div class="scene-bar"><span class="scene-time">FRI <strong>7 p.m.</strong></span><label class="sr-only" for="area">Neighborhood</label><select id="area"><option>Seongsu</option><option>Williamsburg NYC</option></select><label class="sr-only" for="occasion">Occasion</label><select id="occasion"><option>Dinner</option><option>Cafe</option><option>Drinks</option></select><label class="sr-only" for="radius">Starting radius</label><select id="radius"><option value="2000">2 km start</option><option value="100">100 m start</option></select><span id="friend-count">3 friends</span></div>
+<div id="people" class="people"></div><div class="friend-actions"><button id="add-friend" class="secondary">+ Add friend</button><button id="share" class="quiet">Copy scene link</button><span id="share-status" role="status"></span></div>
 <div class="action-row"><button id="plan" class="primary">Find our common ground <span>↗</span></button><span id="status" role="status" aria-live="polite">Fri 7 p.m. · Seongsu · Dinner · 3 friends</span></div>
 <div id="questions" hidden></div>
 <section id="results" hidden><div class="result-heading"><div><div class="eyebrow">YOUR SHARED TABLE</div><h2 id="pick-name"></h2></div><label class="switch"><input id="taste-off" type="checkbox">Taste off</label></div>
 <div class="metrics"><span id="fairness"></span><span id="overlap"></span><span id="timing"></span></div>
-<div id="map" aria-label="Map of personal and shared picks"></div><div id="map-fallback" hidden></div>
+<div id="contrast" class="contrast"></div><div id="map" aria-label="Map of personal and shared picks"></div><div id="map-fallback" hidden></div>
 <div id="legend" class="legend"></div>
 <div id="baseline-note" hidden>Popularity baseline · no taste signal. Ordered by popularity within Qloo’s returned sample.</div>
 <div id="concessions" class="concessions"></div><p id="narration"></p>
