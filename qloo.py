@@ -80,9 +80,11 @@ class Qloo:
                     if used >= self.monthly_cap:
                         raise BudgetError('Monthly call budget reached. Cached scenes remain available.')
                     now = time.time()
-                    db.execute('DELETE FROM starts WHERE at<=?', (now-1.05,))
+                    db.execute('DELETE FROM starts WHERE at<=?', (now-1.25,))
                     starts = [r[0] for r in db.execute('SELECT at FROM starts ORDER BY at')]
-                    delay = max(0.001, starts[0]+1.05-now) if len(starts)>=5 else 0
+                    # Leave room for network jitter at the provider's five-per-second edge.
+                    delay = max(0, starts[-1]+0.30-now) if starts else 0
+                    if len(starts)>=4:delay=max(delay, starts[0]+1.25-now)
                     if not delay:
                         db.execute('UPDATE months SET used=used+1 WHERE month=?', (month,))
                         db.execute('INSERT INTO starts VALUES (?)', (now,))
