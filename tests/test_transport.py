@@ -48,11 +48,14 @@ class TransportTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory,'QLOO_PROBE_LOGGER':''}):
             workers=[Qloo() for _ in range(6)]
             with ThreadPoolExecutor(max_workers=6) as pool:
-                list(pool.map(lambda i:workers[i].reserve(str(i)),range(6)))
+                times=list(pool.map(lambda i:(workers[i].reserve(str(i)),__import__('time').time())[1],range(6)))
+            ordered=sorted(times)
+            self.assertTrue(all(b-a>=.29 for a,b in zip(ordered,ordered[1:])))
+            self.assertTrue(all(ordered[i+4]-ordered[i]>=1.24 for i in range(len(ordered)-4)))
             with sqlite3.connect(workers[0].database) as db:
                 self.assertEqual(db.execute('SELECT used FROM months').fetchone()[0],1006)
-                # The sixth start only becomes possible once the first window expires.
-                self.assertLessEqual(db.execute('SELECT count(*) FROM starts').fetchone()[0],5)
+                # Burst spacing and the shared four-start window leave upstream headroom.
+                self.assertLessEqual(db.execute('SELECT count(*) FROM starts').fetchone()[0],4)
 
     def test_new_utc_month_gets_its_own_reserved_balance(self):
         import sqlite3
