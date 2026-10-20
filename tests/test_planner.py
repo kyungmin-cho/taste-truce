@@ -57,3 +57,10 @@ class ObservationTests(unittest.TestCase):
             self.assertEqual(source,'LLM planner');self.assertEqual(steps[0]['name'],'widen_radius')
             messages=json.loads(network.call_args[0][0].data)['messages']
             self.assertEqual(messages[-1]['role'],'tool');self.assertEqual(json.loads(messages[-1]['content'])['remaining_count'],6)
+
+    def test_repeated_radius_is_replaced_by_a_useful_local_suggestion(self):
+        answer={'choices':[{'message':{'tool_calls':[{'function':{'name':'widen_radius','arguments':'{"radius":3500}'}}]}}]}
+        config={'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}
+        with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(answer).encode())):
+            source,steps=observe_replan('search farther',{},[{'name':'widen_radius','arguments':{'radius':3500}}],{'remaining_count':23,'radius':3500,'nothing_matched':False})
+            self.assertIn('repeated radius rejected',source);self.assertEqual(steps[0]['name'],'exclude_place')

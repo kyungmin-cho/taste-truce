@@ -134,6 +134,8 @@ def observe_replan(text, scene, actions, observation):
             with urllib.request.urlopen(req,timeout=30) as response:data=json.load(response)
             c=data['choices'][0]['message']['tool_calls'][0]['function']
             a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
+            if a['name']=='widen_radius' and a['arguments']['radius']<=observation['radius']:
+                return 'Local next steps · repeated radius rejected',local
             if a['name'] not in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion'):raise ValueError('Unsupported follow-up')
             return 'LLM planner',[{'label':a['name'].replace('_',' ')+' · '+str(a['arguments']),**a}]
         except Exception:return 'Local next steps · LLM unavailable',local
