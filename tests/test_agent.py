@@ -40,6 +40,22 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(len(result['picks']),6)
         self.assertEqual(result['method'],'maximin-rank')
         self.assertIn('widen → retry',[x['step']['tool'] for x in events])
+    def test_narrow_start_retries_in_order_and_logs_real_shortfall(self):
+        class NarrowQloo(FakeQloo):
+            def request(self,session,path,params):
+                if params.get('filter.location.radius')==100:
+                    self.requests.append((path,params));return {'results':{'entities':[]}},False
+                return super().request(session,path,params)
+        q=NarrowQloo();events=[]
+        result=Agent(q).run('test',{**self.body(),'start_radius':100},events.append)
+        self.assertEqual(result['radius'],3500)
+        widen=[e['step'] for e in events if e['step']['tool']=='widen → retry']
+        self.assertEqual([s['count'] for s in widen],[0,2])
+        self.assertEqual([s['entities'][0] for s in widen],['100 → 2000 m','2000 → 3500 m'])
+        params=[p for path,p in q.requests if 'filter.location.radius' in p]
+        self.assertEqual(sorted({(p['filter.location.radius'],p['take']) for p in params}),[(100,10),(2000,30),(3500,40)])
+        self.assertEqual(result['pool_size'],6)
+
     def test_large_disjoint_pool_uses_supported_take_and_marks_unknown_ranks(self):
         q=LargePoolQloo();people=[{'name':name,'seeds':[{'query':name,'type':'movie'}]} for name in ['A','B']]
         result=Agent(q).run('test',{'people':people},lambda _:None)

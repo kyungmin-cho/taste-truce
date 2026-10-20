@@ -41,4 +41,18 @@ class ConsensusTests(unittest.TestCase):
         self.assertTrue(ambiguity([{'name':'Example'},{'name':'Example'}],'Example'))
         self.assertFalse(ambiguity([{'name':'Example'},{'name':'Something else'}],'Example'))
 
+class ContrastTests(unittest.TestCase):
+    def test_overlap_rank_shifts_and_missing_popularity_rank_are_honest(self):
+        from logic import taste_contrast
+        a,b,c=[dict(place(x),popularity=pop) for x,pop in [('a',.9),('b',.8),('c',.7)]]
+        baseline,comparison=taste_contrast([b,c],[b,c,a],[a,b])
+        self.assertEqual(comparison['overlap'],1)
+        self.assertEqual(comparison['pick_popularity_rank'],2)
+        rows={r['id']:r for r in comparison['rows']}
+        self.assertEqual(rows['a']['change'],'removed')
+        self.assertEqual(rows['a']['taste_rank'],3)
+        self.assertIsNone(rows['c']['popularity_rank'])
+        self.assertEqual(rows['c']['change'],'added')
+        self.assertEqual(rows['b']['change'],'shared')
+
 if __name__=='__main__':unittest.main()

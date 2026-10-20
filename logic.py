@@ -70,3 +70,21 @@ def complete_scores(pool, rows):
 def ambiguity(results, query):
     exact = [e for e in results if e['name'].casefold().strip() == query.casefold().strip()]
     return len(exact) != 1
+
+def taste_contrast(picks, all_picks, popularity):
+    """Ranks refer only to the returned eligible sample, never the whole neighborhood."""
+    sample = sorted(popularity, key=lambda e: (-(e.get('popularity') or 0), e['id']))
+    baseline = sample[:10]
+    taste_ranks = {e['id']: i+1 for i,e in enumerate(all_picks)}
+    pop_ranks = {e['id']: i+1 for i,e in enumerate(sample)}
+    taste_ids = {e['id'] for e in picks}
+    baseline_ids = {e['id'] for e in baseline}
+    rows = []
+    for e in {e['id']:e for e in picks+baseline}.values():
+        rows.append({**e, 'taste_rank':taste_ranks.get(e['id']), 'popularity_rank':pop_ranks.get(e['id']),
+                     'change':'shared' if e['id'] in taste_ids & baseline_ids else ('added' if e['id'] in taste_ids else 'removed')})
+    pick = picks[0]
+    return baseline, {'overlap':len(taste_ids & baseline_ids),
+        'top3_overlap':len({e['id'] for e in picks[:3]} & {e['id'] for e in baseline[:3]}),
+        'taste_count':len(picks), 'baseline_count':len(baseline), 'sample_count':len(sample),
+        'pick_popularity_rank':pop_ranks.get(pick['id']), 'rows':rows}

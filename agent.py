@@ -4,8 +4,8 @@ import json
 import os
 import time
 import urllib.request
-from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked
-from qloo import QlooError
+from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast
+from qloo import QlooError, BudgetError
 
 AREAS = {'Seongsu': (127.0557,37.5445), 'Williamsburg NYC': (-73.9571,40.7081)}
 DEFAULT_PEOPLE = [
@@ -31,10 +31,12 @@ class Agent:
         people=body.get('people', DEFAULT_PEOPLE)
         area=body.get('area','Seongsu')
         occasion=body.get('occasion','Dinner')
-        if area not in AREAS or occasion not in OCCASIONS or not 1<=len(people)<=5:
+        start_radius=body.get('start_radius',2000)
+        if start_radius not in (100,2000):raise ValueError('Choose a supported starting radius.')
+        if area not in AREAS or occasion not in OCCASIONS or not isinstance(people,list) or not 1<=len(people)<=5:
             raise ValueError('Choose a supported scene and one to five friends.')
         for p in people:
-            if not isinstance(p.get('name'),str) or not 1<=len(p.get('seeds',[]))<=3:
+            if not isinstance(p,dict) or not isinstance(p.get('name'),str) or not 1<=len(p['name'].strip())<=60 or not 1<=len(p.get('seeds',[]))<=3:
                 raise ValueError('Each friend needs a name and one to three taste seeds.')
             for s in p['seeds']:
                 if not isinstance(s.get('query'),str) or not 1<=len(s['query'].strip())<=120 or s.get('type') not in ['movie','artist','brand','place','book','tv_show']:
@@ -81,7 +83,7 @@ class Agent:
                 selected=next(r for r in results if r['name'].casefold()==seed['query'].casefold())
             return pi,si,seed,key,selected,results
         jobs=[(pi,si,s) for pi,p in enumerate(people) for si,s in enumerate(p['seeds'])]
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=6) as executor:
             resolved=list(executor.map(resolve,jobs))
         clarification=[];ids=[[] for _ in people]
         for pi,si,seed,key,selected,results in resolved:
@@ -94,7 +96,8 @@ class Agent:
         step('choose category',tags,len(tags),occasion=occasion,operator='intersection')
         lon,lat=AREAS[area]
         pool={};lists=[];baseline=[]
-        for radius,take in [(2000,30),(3500,40),(5000,50)]:
+        attempts=([(100,10)] if start_radius==100 else [])+[(2000,30),(3500,40),(5000,50)]
+        for attempt,(radius,take) in enumerate(attempts):
             params={'filter.type':'urn:entity:place','filter.location':f'POINT({lon} {lat})','filter.location.radius':radius,'take':take,'filter.tags':','.join(tags),'operator.filter.tags':'intersection'}
             def retrieve(i):
                 p={**params,'signal.interests.entities':','.join(ids[i])}
@@ -108,7 +111,8 @@ class Agent:
             step('validate category + exclusions',[area,f'{radius} m',f'take {take}'],len(pool))
             if len(pool)>=5:break
             if radius<5000:
-                step('widen → retry',[f'{radius} m',f'take {take}','Fewer than 5 eligible places'],len(pool))
+                next_radius,next_take=attempts[attempt+1]
+                step('widen → retry',[f'{radius} → {next_radius} m',f'take {take} → {next_take}','Fewer than 5 eligible places'],len(pool))
             else:
                 step('candidate limit reached',['Return the actual remaining count'],len(pool))
         if not pool:
@@ -128,6 +132,8 @@ class Agent:
                 rescored=list(executor.map(rescore,range(len(people))))
             if any(r is None for r in rescored):raise QlooError('Incomplete affinity coverage')
             lists=rescored
+        except BudgetError:
+            raise
         except QlooError:
             method='rank-sum'
             step('fallback · rank-sum',['Rescoring unavailable or incomplete; expand retrieval'],len(pool))
@@ -137,16 +143,17 @@ class Agent:
             with ThreadPoolExecutor(max_workers=3) as executor:lists=list(executor.map(widen,range(len(people))))
             pool={e['id']:e for es in lists for e in es};pool_rows=list(pool.values())
         t=time.perf_counter()
-        picks=consensus(pool_rows,lists,method)
+        all_picks=consensus(pool_rows,lists,method,limit=len(pool_rows))
+        picks=all_picks[:10]
         if not picks:raise QlooError('There are no comparable candidates. Change the scene.')
         if any(not rows for rows in lists):raise QlooError('One signal has no candidates after exclusions. Change the scene.')
         explanations=[concession(p,lists[i],picks[0],i) for i,p in enumerate(people)]
         step('consensus · '+method,[e['name'] for e in picks],len(picks),(time.perf_counter()-t)*1000)
-        baseline=sorted(baseline,key=lambda e:-(e['popularity'] or 0))[:10]
-        overlap=len({e['id'] for e in picks[:10]}&{e['id'] for e in baseline})
+        baseline,contrast=taste_contrast(picks,all_picks,baseline)
+        overlap=contrast['overlap']
         result={'status':'done','area':area,'occasion':occasion,'people':people,'picks':picks,'personal':[es[:10] for es in lists],
                 'baseline':baseline,'overlap':overlap,'overlap_denominator':min(10,len(picks)), 'pool_size':len(pool), 'method':method,
-                'concessions':explanations,'veto':veto,'radius':radius,'take':take, 'session_calls':self.qloo.used(session)}
+                'concessions':explanations,'veto':veto,'radius':radius,'take':take,'contrast':contrast, 'session_calls':self.qloo.used(session)}
         # Optional narration never replaces the deterministic, evidence-grounded concessions.
         if os.getenv('LLM_API_KEY') and os.getenv('LLM_BASE_URL') and os.getenv('LLM_MODEL'):
             t=time.perf_counter()
