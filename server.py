@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import secrets
 import threading
+import time
 from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parent
@@ -21,7 +22,7 @@ def load_env(path):
 
 load_env(Path(os.getenv('ENV_FILE',ROOT/'.env')))
 from agent import Agent, DEFAULT_PEOPLE
-from qloo import Qloo, QlooError
+from qloo import Qloo, QlooError, BudgetError
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -39,6 +40,7 @@ class Handler(BaseHTTPRequestHandler):
         route=urlsplit(self.path).path
         if route=='/api/config':
             return self.json_response(200,{'people':DEFAULT_PEOPLE,'session_call_cap':self.server.qloo.session_cap})
+        if route=='/health':return self.json_response(200,{'status':'ok'})
         files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js'}
         if route not in files:return self.json_response(404,{'error':'Not found'})
         file=ROOT/'static'/files[route];data=file.read_bytes()
@@ -77,7 +79,22 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError,ConnectionResetError):disconnected.set()
         try:
             result=self.server.agent.run(token,body,emit)
+            if (result['status']=='done' and result['people']==DEFAULT_PEOPLE and result['area']=='Seongsu'
+                and result['occasion']=='Dinner' and not result['veto']['excluded'] and not result['veto']['no_bars']):
+                self.server.qloo.save('/scene/default',{},result)
             emit({'event':'result','result':result})
+        except BudgetError as err:
+            cached=self.server.qloo.cache/(self.server.qloo.signature('/scene/default',{})+'.json')
+            try:
+                item=json.loads(cached.read_text())
+                result=item['data']
+                result['notice']=str(err)+' Showing the saved default Seongsu scene; your edits were not applied.'
+                result['saved_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(item['saved']))
+                result['session_calls']=self.server.qloo.used(token)
+                emit({'event':'step','step':{'tool':'budget → cached default scene','entities':[result['saved_utc']],'count':len(result['picks']),'latency_ms':0,'cache':True}})
+                emit({'event':'result','result':result})
+            except (OSError,ValueError,KeyError):
+                emit({'event':'error','message':str(err)+' No saved default scene is available yet.'})
         except (QlooError,ValueError) as err:
             emit({'event':'error','message':str(err)})
         except Exception:

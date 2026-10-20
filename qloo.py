@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import sqlite3
 from pathlib import Path
 import threading
 import time
@@ -13,12 +14,25 @@ import urllib.request
 class QlooError(Exception):
     pass
 
+class BudgetError(QlooError):
+    pass
+
 class Qloo:
     def __init__(self):
         self.key = os.getenv('QLOO_API_KEY', '')
         self.base = (os.getenv('QLOO_BASE_URL') or 'https://hackathon.api.qloo.com').rstrip('/')
-        self.cache = Path((os.getenv('QLOO_CACHE_DIR') or '.cache/qloo'))
+        self.cache = Path(os.getenv('QLOO_CACHE_DIR') or Path.home()/'.cache'/'taste-truce'/'responses')
         self.cache.mkdir(parents=True, exist_ok=True)
+        self.state = Path(os.getenv('QLOO_STATE_DIR') or Path.home()/'.local'/'state'/'taste-truce')
+        self.state.mkdir(parents=True, exist_ok=True)
+        self.database = self.state/'budget.sqlite3'
+        self.monthly_cap = min(8000, max(0, int(os.getenv('MONTHLY_CALL_CAP') or '8000')))
+        # Leave headroom for calls made outside this installation before accounting began.
+        self.monthly_reserved = max(0, int(os.getenv('MONTHLY_RESERVED_CALLS') or '1000'))
+        with sqlite3.connect(self.database) as db:
+            db.execute('CREATE TABLE IF NOT EXISTS months (month TEXT PRIMARY KEY, used INTEGER NOT NULL)')
+            db.execute('CREATE TABLE IF NOT EXISTS starts (at REAL NOT NULL)')
+        os.chmod(self.database, 0o600)
         self.ttl = int((os.getenv('QLOO_CACHE_TTL_SECONDS') or '86400'))
         self.session_cap = int((os.getenv('SESSION_CALL_CAP') or '30'))
         self.lock = threading.RLock()
@@ -32,7 +46,7 @@ class Qloo:
             self.logger = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.logger)
             # Import previous responses by exact request signature, without another call.
-            for row in json.loads(self.logger.LEDGER.read_text()):
+            for row in (json.loads(self.logger.LEDGER.read_text()) if os.getenv('QLOO_PROBE_IMPORT') == '1' else []):
                 if row.get('status') == 200 and row.get('raw_file'):
                     data = json.loads((self.logger.OUT/row['raw_file']).read_text())
                     self.save(row['path'], row['params'], data)
@@ -51,6 +65,30 @@ class Qloo:
         with self.lock:
             return self.sessions.get(session, 0)
 
+    def reserve(self, session):
+        """Reserve before sending; failures count. SQLite serializes all local workers."""
+        while True:
+            with self.lock:
+                if self.sessions.get(session, 0) >= self.session_cap:
+                    raise BudgetError('Session call budget reached. Try the cached Seongsu scene.')
+                with sqlite3.connect(self.database, timeout=10) as db:
+                    db.execute('BEGIN IMMEDIATE')
+                    month = time.strftime('%Y-%m', time.gmtime())
+                    db.execute('INSERT OR IGNORE INTO months VALUES (?, ?)', (month, self.monthly_reserved))
+                    used = db.execute('SELECT used FROM months WHERE month=?', (month,)).fetchone()[0]
+                    if used >= self.monthly_cap:
+                        raise BudgetError('Monthly call budget reached. Cached scenes remain available.')
+                    now = time.time()
+                    db.execute('DELETE FROM starts WHERE at<=?', (now-1.05,))
+                    starts = [r[0] for r in db.execute('SELECT at FROM starts ORDER BY at')]
+                    delay = max(0.001, starts[0]+1.05-now) if len(starts)>=5 else 0
+                    if not delay:
+                        db.execute('UPDATE months SET used=used+1 WHERE month=?', (month,))
+                        db.execute('INSERT INTO starts VALUES (?)', (now,))
+                        self.sessions[session] = self.sessions.get(session, 0)+1
+                        return
+            time.sleep(delay)
+
     def request(self, session, path, params):
         digest = self.signature(path, params)
         with self.lock:
@@ -66,15 +104,15 @@ class Qloo:
                     pass
             if not self.key:
                 raise QlooError('Set QLOO_API_KEY on the server, then restart.')
-            with self.lock:
-                if self.sessions.get(session, 0) >= self.session_cap:
-                    raise QlooError('Session call budget reached. Cached plans remain available.')
-                self.sessions[session] = self.sessions.get(session, 0)+1
-                now = time.monotonic()
-                self.starts = [s for s in self.starts if now-s < 1.05]
-                if len(self.starts) >= 5:
-                    time.sleep(max(0, 1.05-(now-self.starts[0])))
-                self.starts.append(time.monotonic())
+            try:
+                self.reserve(session)
+            except BudgetError:
+                if cached.exists():
+                    try:
+                        return json.loads(cached.read_text())['data'], 'stale · budget reached'
+                    except (ValueError, KeyError):
+                        pass
+                raise
             if self.logger:
                 data = self.logger.call('app-'+digest[:10], path, params)
                 if not data or (data.get('errors') or not data.get('success', True)):

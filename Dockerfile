@@ -2,8 +2,8 @@ FROM python:3.12-slim
 WORKDIR /app
 COPY server.py agent.py logic.py qloo.py ./
 COPY static ./static
-RUN useradd --create-home appuser && mkdir .cache && chown appuser:appuser .cache
+RUN useradd --create-home appuser && mkdir -p /data/cache /data/state && chown -R appuser:appuser /data
 USER appuser
-ENV PORT=3000 PYTHONDONTWRITEBYTECODE=1
+ENV PORT=3000 PYTHONDONTWRITEBYTECODE=1 QLOO_CACHE_DIR=/data/cache QLOO_STATE_DIR=/data/state
 EXPOSE 3000
 CMD ["python", "server.py", "--host", "0.0.0.0"]

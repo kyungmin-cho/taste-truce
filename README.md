@@ -17,16 +17,16 @@ python3 server.py
 
 Open http://localhost:3000. Only the server reads provider credentials. Alternatively use `ENV_FILE=/path/to/private.env python3 server.py`. The server binds to localhost by default. Leaflet, fonts, and OpenStreetMap tiles require internet access; results remain readable if the map cannot load.
 
-Optional settings can be omitted or removed from `.env`: `SESSION_CALL_CAP` (30), `QLOO_CACHE_DIR` (`.cache/qloo`), `QLOO_CACHE_TTL_SECONDS` (86400), `HOST` (`127.0.0.1`), and `PORT` (3000).
+Optional settings can be omitted or removed from `.env`: `SESSION_CALL_CAP` (30), `QLOO_CACHE_DIR` (`~/.cache/taste-truce/responses`), `QLOO_STATE_DIR` (`~/.local/state/taste-truce`), `MONTHLY_CALL_CAP` (8000 maximum), `MONTHLY_RESERVED_CALLS` (1000), `QLOO_CACHE_TTL_SECONDS` (86400), `HOST` (`127.0.0.1`), and `PORT` (3000).
 
 ## Docker
 
 ```sh
 docker build -t taste-truce .
-docker run --rm -p 3000:3000 --env-file .env taste-truce
+docker run --rm -p 3000:3000 --env-file .env -v taste-truce-data:/data taste-truce
 ```
 
-The image runs as an unprivileged user. Runtime credentials and cached responses are excluded from the build context. The container's cache lasts for its lifetime; mount a writable private directory at `/app/.cache` to retain it. Do not publish caches or Qloo response data.
+The image runs as an unprivileged user. The volume at `/data` preserves the private cache and SQLite monthly budget across container restarts. All workers must share the same state directory; use one persistent service instance. Never put state or caches in git or a public image. The default 1000-call monthly reserve covers prior external usage; increase it to cover additional use of the same key elsewhere. A lost state volume resets accounting, so restore it before restarting a public service. Ephemeral free hosts need a persistent external budget store before public use.
 
 ## Agent behavior
 
