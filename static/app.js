@@ -1,9 +1,14 @@
-const colors=['#9c66b9','#dd8257','#4a99a3','#728d4c','#ab7c96'];
+// Friends are told apart by gray shade and name; the accent marks the group's shortlist.
+const ACCENT='#6363b0',INK='#28323c',WHITE='#ffffff';
+const shades=['#2f353b','#4e545a','#6c7279','#868c92','#a0a6ac'];
+const friendPin=i=>({fill:shades[i],text:i<3?WHITE:INK});
+const pinStyles={pick:{fill:ACCENT,text:WHITE},shortlist:{fill:WHITE,text:ACCENT,border:ACCENT},popular:{fill:shades[1],text:WHITE},both:{fill:WHITE,text:shades[1],border:shades[3]}};
+const swatch=s=>`<i style="background:${s.fill};${s.border?`border-color:${s.border}`:''}"></i>`;
 const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let people=[],result=null,choices={},veto={excluded:[],no_bars:false},map=null,pins=[],busy=false,steps=[],swapFrom=null,config=null,pendingAction=null;
 function renderPeople(){
-  el('people').innerHTML=people.map((p,i)=>`<article class="person" style="--color:${colors[i]}"><div class="person-head"><label class="sr-only" for="name-${i}">Friend ${i+1} name</label><input id="name-${i}" class="friend-name" data-name="${i}" value="${esc(p.name)}" maxlength="60"><button class="quiet" data-remove="${i}" aria-label="Remove ${esc(p.name)}" ${people.length===1?'disabled':''}>×</button></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"><button class="quiet" data-removeseed="${i}:${j}" ${p.seeds.length===1?'disabled':''}>Remove taste</button></div>`).join('')}<button class="quiet" data-addseed="${i}" ${p.seeds.length===3?'disabled':''}>+ Add taste</button></article>`).join('');
+  el('people').innerHTML=people.map((p,i)=>`<article class="person"><div class="person-head"><label class="sr-only" for="name-${i}">Friend ${i+1} name</label><input id="name-${i}" class="friend-name" data-name="${i}" value="${esc(p.name)}" maxlength="60"><button class="quiet" data-remove="${i}" aria-label="Remove ${esc(p.name)}" ${people.length===1?'disabled':''}>×</button></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"><button class="quiet" data-removeseed="${i}:${j}" ${p.seeds.length===1?'disabled':''}>Remove taste</button></div>`).join('')}<button class="quiet" data-addseed="${i}" ${p.seeds.length===3?'disabled':''}>+ Add taste</button></article>`).join('');
 }
 el('people').addEventListener('input',event=>{
   const node=event.target;if(node.dataset.name!==undefined){people[+node.dataset.name].name=node.value;return;}if(node.dataset.field){people[+node.dataset.person].seeds[+node.dataset.seed][node.dataset.field]=node.value;choices={};}
@@ -64,14 +69,14 @@ function drawMap(off){
   if(!map){map=L.map('map',{scrollWheelZoom:false}).setView([40.7081,-73.9571],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);}
   map.invalidateSize();pins.forEach(p=>map.removeLayer(p));pins=[];
   const points=[];
-  function pin(e,color,label,shared=false){
+  function pin(e,style,label,shared=false){
     if(!e.location||!Number.isFinite(e.location.lat)||!Number.isFinite(e.location.lon))return;
     const point=[e.location.lat,e.location.lon];points.push(point);
-    const icon=L.divIcon({className:'',html:`<div class="pin ${shared?'consensus-pin':''}" style="background:${color};width:30px;height:30px">${label}</div>`,iconSize:[shared?36:30,shared?36:30],iconAnchor:[15,15]});
+    const icon=L.divIcon({className:'',html:`<div class="pin ${shared?'consensus-pin':''}" style="background:${style.fill};color:${style.text};${style.border?`border-color:${style.border};`:''}width:30px;height:30px">${label}</div>`,iconSize:[shared?36:30,shared?36:30],iconAnchor:[15,15]});
     const marker=L.marker(point,{icon,zIndexOffset:shared?1000:0}).addTo(map).bindPopup(`<strong>${esc(e.name)}</strong><br>${esc(e.genre)}<br>${esc(e.address)}`);pins.push(marker);
   }
-  if(off)result.baseline.forEach((e,i)=>pin(e,result.picks.some(p=>p.id===e.id)?'#b5bbb2':'#c77545',i+1));
-  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,colors[i],j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,result.baseline.some(p=>p.id===e.id)?'#b5bbb2':'#548739',i+2));pin(result.picks[0],'#20332b',1,true);}
+  if(off)result.baseline.forEach((e,i)=>pin(e,result.picks.some(p=>p.id===e.id)?pinStyles.both:pinStyles.popular,i+1));
+  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,friendPin(i),j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,pinStyles.shortlist,i+2));pin(result.picks[0],pinStyles.pick,1,true);}
   if(points.length)map.stop().fitBounds(points,{padding:[35,35],maxZoom:15,animate:false});
 }
 function swapComparison(pick){
@@ -94,16 +99,16 @@ function renderResult(){
   renderContrast(off);
   el('overlap').textContent=`${result.overlap}/${result.overlap_denominator} overlap with popularity`;
   el('timing').textContent=`Within ${result.radius/1000} km`;
-  el('legend').innerHTML=off?'<span><i style="background:#819075"></i>Popularity · taste off</span>':result.people.map((p,i)=>`<span><i style="background:${colors[i]}"></i>${esc(p.name)}</span>`).join('')+'<span><i style="background:#20332b"></i>Our shared pick</span>';
+  el('legend').innerHTML=off?`<span>${swatch(pinStyles.popular)}Popularity top 10</span><span>${swatch(pinStyles.both)}Also on the taste shortlist</span>`:result.people.map((p,i)=>`<span>${swatch(friendPin(i))}${esc(p.name)} top 3</span>`).join('')+`<span>${swatch(pinStyles.shortlist)}Shortlist</span><span>${swatch(pinStyles.pick)}Shared pick</span>`;
   el('baseline-note').hidden=!off;el('concessions').hidden=off;
-  el('concessions').innerHTML=result.concessions.map((c,i)=>`<article class="concession" style="--color:${colors[i]}"><strong>${esc(c.person)}</strong><span class="rank">${c.rank===null?'Rank unknown':(c.rank===1?'Still #1':`#1 → #${c.rank} · ${c.rank_drop} ${c.rank_drop===1?'place':'places'}`)}</span><small class="place-context">Personal #1 · ${esc(result.personal[i][0]?.genre)} · ${esc(result.personal[i][0]?.address)}</small><div>${esc(c.text)}</div><p class="seed-contributions">${c.contributions?.length?'Taste signal contributions: '+c.contributions.map(x=>`${esc(x.seed)} ${Math.round(x.score*100)}%`).join(' · '):''}</p></article>`).join('');
+  el('concessions').innerHTML=result.concessions.map((c,i)=>`<article class="concession"><strong>${esc(c.person)}</strong><span class="rank">${c.rank===null?'Rank unknown':(c.rank===1?'Still #1':`#1 → #${c.rank} · ${c.rank_drop} ${c.rank_drop===1?'place':'places'}`)}</span><small class="place-context">Personal #1 · ${esc(result.personal[i][0]?.genre)} · ${esc(result.personal[i][0]?.address)}</small><div>${esc(c.text)}</div><p class="seed-contributions">${c.contributions?.length?'Taste signal contributions: '+c.contributions.map(x=>`${esc(x.seed)} ${Math.round(x.score*100)}%`).join(' · '):''}</p></article>`).join('');
   const inputs=result.people.map(p=>`<span><b>${esc(p.name)}</b>: ${p.seeds.map(s=>esc(s.query)).join(' + ')}</span>`).join('');
   el('scene-summary').innerHTML=`<div class="input-summary">${inputs}</div>${swapComparison(pick)}`;
   el('suggestions').innerHTML=(result.suggestions||[]).map((x,i)=>`<button class="secondary" data-next="${i}">${esc(x.label)}</button>`).join('');
   el('suggestions').querySelectorAll('button').forEach(b=>b.onclick=()=>{const s=result.suggestions[+b.dataset.next];pendingAction={name:s.name,arguments:s.arguments};plan(s.label);});
-  el('list-title').textContent=off?'Popularity baseline':'The common ground shortlist';
+  el('list-title').textContent=off?'Popularity baseline':'The common ground shortlist';document.querySelector('.shortlist-heading>span').hidden=off;
   const rows=off?result.baseline:result.picks;
-  el('shortlist').innerHTML=rows.map((e,i)=>`<article class="place ${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'shared':'changed'}"><span class="num">${String(i+1).padStart(2,'0')}</span><div><strong>${esc(e.name)}</strong><small>${esc(e.genre)} · ${esc(e.address)}</small><small class="change-label">${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'In both top 10s':(off?'Taste signal leaves this out':'Taste signal brings this in')}</small></div><div class="rank-pills">${off?'':e.ranks.map((r,j)=>`<span style="--color:${colors[j]}">${e.observed[j]?'#'+r:'—'}</span>`).join('')}</div><button data-veto="${esc(e.id)}" aria-label="Veto ${esc(e.name)}">Veto</button></article>`).join('');
+  el('shortlist').innerHTML=rows.map((e,i)=>`<article class="place ${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'shared':'changed'}"><span class="num">${String(i+1).padStart(2,'0')}</span><div><strong>${esc(e.name)}</strong><small>${esc(e.genre)} · ${esc(e.address)}</small><small class="change-label">${result.contrast.rows.find(r=>r.id===e.id)?.change==='shared'?'In both top 10s':(off?'Taste signal leaves this out':'Taste signal brings this in')}</small></div><div class="rank-pills">${off?'':e.ranks.map((r,j)=>`<span title="${esc(result.people[j]?.name)}"><span class="sr-only">${esc(result.people[j]?.name)} </span>${e.observed[j]?'#'+r:'—'}</span>`).join('')}</div><button data-veto="${esc(e.id)}" aria-label="Veto ${esc(e.name)}">Veto</button></article>`).join('');
   el('shortlist').querySelectorAll('button').forEach(button=>button.onclick=()=>{veto.excluded=[...new Set([...veto.excluded,button.dataset.veto])];plan();});
   requestAnimationFrame(()=>drawMap(off));
 }
@@ -125,7 +130,7 @@ el('share').onclick=async()=>{try{const url=new URL(location.href);url.hash='sce
 function renderContrast(off){
  const c=result.contrast,rank=c.pick_popularity_rank,added=c.rows.filter(r=>r.change==='added'),removed=c.rows.filter(r=>r.change==='removed');
  const list=rows=>rows.map(r=>`<span><b>${esc(r.name)}</b> · ${esc(r.genre)}<small>${[r.popularity_rank&&'Popularity #'+r.popularity_rank,r.taste_rank&&'Taste signal #'+r.taste_rank].filter(Boolean).join(' → ')}</small><small>${esc(r.tags.filter(t=>/urn:tag:(ambience|culinary_style|offerings|service_type):/.test(t.id)).slice(0,3).map(t=>t.name).join(' · ')||'No descriptive tags recorded')}</small></span>`).join('');
- el('contrast').innerHTML=`<div class="decision"><span>${rank===1?COPY.agrees:COPY.perspective}</span><strong>${esc(result.picks[0].name)}</strong>${rank&&rank!==1?`<div>Popularity #${rank} → Taste signal #1</div>`:''}</div><div class="contrast-summary">Top 3: ${c.top3_overlap}/${Math.min(3,c.taste_count,c.baseline_count)} shared · Top 10: ${c.overlap} shared, ${added.length} added, ${removed.length} left out</div><div class="delta-columns"><div><h4>+ Taste signal brings in</h4>${list(added)||'No additions'}</div><div><h4>− Taste signal leaves out</h4>${list(removed)||'No removals'}</div></div>`;
+ el('contrast').innerHTML=`<div class="decision"><span>${rank===1?COPY.agrees:COPY.perspective}</span><strong>${esc(result.picks[0].name)}</strong>${rank&&rank!==1?`<div>Popularity #${rank} → Taste signal #1</div>`:''}</div><div class="contrast-summary">Top 3: ${c.top3_overlap}/${Math.min(3,c.taste_count,c.baseline_count)} shared · Top 10: ${c.overlap} shared, ${added.length} added, ${removed.length} left out</div><div class="delta-columns"><div><h4>Taste signal brings in</h4>${list(added)||'No additions'}</div><div><h4>Taste signal leaves out</h4>${list(removed)||'No removals'}</div></div>`;
 }
 function renderHero(){
   el('hero').hidden=false;el('headline').textContent=COPY.headline;el('hero-title').textContent=COPY.tableTitle;
