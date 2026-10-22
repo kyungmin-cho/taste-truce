@@ -9,10 +9,10 @@ Live demo: <DEMO_URL>
 ## The 30-second demo path
 
 1. Open the demo. The first screen is a saved scene: Williamsburg, dinner, Friday 7 p.m., three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
-2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick. The worst rank in each row is highlighted. In the saved Seongsu scene the most popular place ranks 10·2·5 for the three friends, and the fair pick ranks 4·1·2.
+2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick; a place that is several of these gets one row with every label. The worst rank in each row is highlighted. In the saved Williamsburg scene the fair pick is also the most popular place and friend 3's #1, ranking 8·8·1. Choosing either other friend's #1 instead would push someone down to #49 or #40.
 3. Choose the "Williamsburg · majority / minority" preset. Two friends share a #1, Ume, which the third friend ranks #29. The fair pick, Maison Premiere, ranks 6·3·2.
 4. Type a veto such as "somewhere quieter" or "no bars please" and press Replan. The Agent steps panel lists each tool call, then an `observe → replan` step that suggests what to try next.
-5. Replace friend 2 with Hip-hop + sneakers or K-pop + streetwear. The table shows whether the fair pick moved, and says "unchanged" when it didn't.
+5. Open "Edit friends and scene" and replace friend 2 with Hip-hop + sneakers. The table shows whether the fair pick moved, and says "unchanged" when it didn't.
 
 ## How Qloo is used
 
