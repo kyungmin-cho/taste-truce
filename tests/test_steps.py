@@ -57,7 +57,7 @@ class StepLabelTests(unittest.TestCase):
                               ('Widest search reached',['4 places left'],None),
                               ('Shared list',['Top 29 per friend · 49 places'],None),
                               ('Lowest rank sum',['Some ranks are missing; searching wider'],None),
-                              ('/v2/insights · fallback',['Indie + jazz'],50),
+                              ('/v2/insights · person',['Indie + jazz'],50),
                               ('Fair pick',['A'],None),
                               ('Fair pick',['A'],None),
                               ('observe → replan · Local planner',['29 places left · 17 excluded · 2 km'],None),

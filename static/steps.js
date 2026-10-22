@@ -8,7 +8,7 @@ const STEPS=(()=>{
     const tool=String(row.tool||''),names=(row.entities||[]).map(String).filter(x=>!ID.test(x)),count=row.count;
     const step={title:tool,lines:names,count:null,list:null};
     // Only Qloo calls report how many results came back.
-    if(tool.startsWith('/'))return {...step,title:tool.replace(/ · fallback.*/,' · fallback'),count,...(tool.endsWith('rescore')?{list:names.slice(1)}:{})};
+    if(tool.startsWith('/'))return {...step,title:tool.replace(/ · fallback.*/,' · person'),count,...(tool.endsWith('rescore')?{list:names.slice(1)}:{})};
     if(tool.startsWith('Direct'))return {...step,title:'Plan',lines:[]};
     if(tool==='ask user')return {...step,title:'Ask which one'};
     if(tool==='choose category')return {...step,title:'Choose category'};

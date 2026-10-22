@@ -13,7 +13,7 @@ SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved sc
   'take ','bound candidate union','maximin-rank','entity_ids','Direct plan','validate category','widen → retry',' entities`','All input names',
   'overlap with popularity','Top 3:','left out</div>','No popularity sample','In both top 10s','eligible places','recorded conditions',
   'friendPin','top 3</span>',
-  'baseline places','Popularity baseline','Popularity order','tags recorded','Rank unknown','Rank-sum fallback','penalized']
+  'baseline places','Popularity baseline','Popularity order','tags recorded','Rank unknown','Rank-sum fallback','penalized','Group pick']
 SCREEN_FILES=['static/copy.js','static/steps.js','static/app.js','static/index.html']
 # Caveats, limiter timings and API argument names kept out of the docs.
 DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision','unavailable','does not configure','recorded run','latency','from cache','take ']

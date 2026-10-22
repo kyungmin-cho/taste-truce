@@ -1,6 +1,6 @@
 import unittest
 from agent import compact
-from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, consensus, eligible
+from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, concession_table, consensus, eligible
 
 def place(i,genre='Korean barbecue restaurant',tags=None):
     return {'id':i,'name':i,'genre':genre,'tags':tags or [{'id':CATEGORY+'restaurant','name':'Restaurant'},{'id':DINNER,'name':'Dinner'}]}
@@ -19,6 +19,14 @@ class ConsensusTests(unittest.TestCase):
         result=consensus(pool,lists,'rank-sum')
         self.assertEqual(result[1]['observed'],[True,False])
         self.assertFalse(complete_scores(pool,[dict(place('a'),affinity=.7)]))
+    def test_rank_sum_table_rows_name_the_fair_pick_without_working_labels(self):
+        pool=sequence('ab');lists=[sequence('ab'),sequence('b')]
+        pick=next(e for e in consensus(pool,lists,'rank-sum') if not all(e['observed']))
+        rows=concession_table([{'name':'A'},{'name':'B'}],lists,sequence('a'),pick)
+        labels=[r['label'] for r in rows]
+        self.assertIn('Fair pick · lowest rank sum · Popularity #1 · A #1',labels)
+        for label in labels:
+            with self.subTest(label=label):self.assertNotIn('fallback',label.lower())
     def test_concession_uses_rank_and_recorded_tag_difference(self):
         first=place('a',tags=[{'id':'jazz','name':'Jazz'}]);pick=place('b',tags=[{'id':'noodles','name':'Noodles'}])
         picked=consensus([pick],[[first,pick],[pick]],limit=1)[0]

@@ -85,7 +85,7 @@ function swapComparison(pick){
     }).filter(Boolean);
     return moves.length?`<b>${esc(p.name)} personal top 3:</b> ${moves.join(' · ')}`:'';
   }).filter(Boolean).join('<br>');
-  return `<p class="swap-change">Friend 2 tastes replaced · Group pick: ${esc(swapFrom.picks[0].name)} → ${esc(pick.name)}${swapFrom.picks[0].id===pick.id?' (unchanged)':''}</p><p>${changed||'Personal top 3 unchanged.'}</p>`;
+  return `<p class="swap-change">Friend 2 tastes replaced · ${swapFrom.picks[0].id===pick.id?`Fair pick unchanged: ${esc(pick.name)}`:`Fair pick: ${esc(swapFrom.picks[0].name)} → ${esc(pick.name)}`}</p><p>${changed||'Personal top 3 unchanged.'}</p>`;
 }
 function renderResult(){
   const off=el('taste-off').checked;el('results').hidden=false;
