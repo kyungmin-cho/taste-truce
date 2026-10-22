@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table
 from qloo import QlooError, BudgetError
-from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for
+from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for, max_radius
 
 AREAS = {'Seongsu': (127.0557,37.5445), 'Williamsburg NYC': (-73.9571,40.7081)}
 DEFAULT_PEOPLE = [
@@ -73,6 +73,7 @@ class Agent:
         step(planner,[a['name']+' · '+label_for(a) for a in actions],len(actions),(time.perf_counter()-t)*1000)
         scene,veto,needs_taste=apply_tools(scene,veto,actions,body.get('current_pick'))
         people,area,occasion,start_radius=(scene[k] for k in ('people','area','occasion','start_radius'))
+        start_radius=min(start_radius,max_radius(area))
         if needs_taste:
             return {'status':'friend_taste','people':people,'area':area,'occasion':occasion,'start_radius':start_radius,'veto':veto,'planner':planner,'steps':steps}
         choices=body.get('choices',{})
@@ -115,7 +116,7 @@ class Agent:
         step('choose category',[t.rsplit(':',1)[-1].replace('_',' ') for t in tags],len(tags),occasion=occasion,operator='intersection')
         lon,lat=AREAS[area]
         pool={};lists=[];baseline=[];excluded_ids=set()
-        attempts=[(r,t) for r,t in [(100,10),(2000,30),(3500,40),(5000,50)] if r>=start_radius]
+        attempts=[(r,t) for r,t in [(100,10),(2000,30),(3500,40),(5000,50)] if start_radius<=r<=max_radius(area)]
         for attempt,(radius,take) in enumerate(attempts):
             params={'filter.type':'urn:entity:place','filter.location':f'POINT({lon} {lat})','filter.location.radius':radius,'take':take,'filter.tags':','.join(tags),'operator.filter.tags':'intersection'}
             def retrieve(i):
@@ -133,7 +134,7 @@ class Agent:
             pool={e['id']:e for es in lists for e in es}
             step('validate category + exclusions',[area,f'{radius} m',f'take {take}'],len(pool))
             if len(pool)>=5:break
-            if radius<5000:
+            if attempt+1<len(attempts):
                 next_radius,next_take=attempts[attempt+1]
                 step('widen → retry',[f'{radius} → {next_radius} m',f'take {take} → {next_take}','Fewer than 5 eligible places'],len(pool))
             else:

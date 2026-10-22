@@ -118,3 +118,34 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertEqual(result['concessions'][0]['contributions'],[{'seed':'Film','score':.75}])
 
 if __name__=='__main__':unittest.main()
+
+class NeighborhoodRadiusTests(unittest.TestCase):
+    class Sparse(FakeQloo):
+        def request(self,session,path,params):
+            if 'filter.location.radius' in params and 'filter.results.entities' not in params:
+                self.requests.append((path,params))
+                rows=[{'entity_id':i,'name':'Place '+i,'properties':{'primary_genre':{'name':'Restaurant'}},'tags':[{'id':CATEGORY+'restaurant','name':'Restaurant'},{'id':DINNER,'name':'Dinner'}],'query':{'affinity':1/(int(i)+1)},'popularity':.5} for i in '01']
+                return {'results':{'entities':rows}},False
+            return super().request(session,path,params)
+    def radii(self,q):return sorted({p['filter.location.radius'] for _,p in q.requests if 'filter.location.radius' in p})
+    def body(self,area,**extra):return {'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'}]}],'area':area,**extra}
+
+    def test_sparse_williamsburg_search_stops_at_three_and_a_half_km(self):
+        q=self.Sparse();events=[]
+        result=Agent(q).run('s',self.body('Williamsburg NYC'),events.append)
+        self.assertEqual(self.radii(q),[2000,3500]);self.assertEqual(result['radius'],3500)
+        self.assertIn('candidate limit reached',[e['step']['tool'] for e in events])
+        q=self.Sparse();Agent(q).run('s',self.body('Seongsu'),lambda _:None)
+        self.assertEqual(self.radii(q),[2000,3500,5000])
+
+    def test_suggested_or_linked_wide_radius_stays_in_williamsburg(self):
+        for extra in [{'suggested_action':{'name':'widen_radius','arguments':{'radius':5000}},'veto_text':'Search farther · 5 km'},{'start_radius':5000}]:
+            with self.subTest(extra=extra):
+                q=self.Sparse();result=Agent(q).run('s',self.body('Williamsburg NYC',**extra),lambda _:None)
+                self.assertEqual(self.radii(q),[3500]);self.assertEqual(result['start_radius'],3500)
+
+    def test_suggested_veto_does_not_widen_past_the_neighborhood(self):
+        q=self.Sparse()
+        result=Agent(q).run('s',self.body('Williamsburg NYC',suggested_action={'name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}},veto_text='Somewhere quieter'),lambda _:None)
+        self.assertLessEqual(max(self.radii(q)),3500)
+        self.assertNotIn('widen_radius',[s['name'] for s in result['suggestions']])

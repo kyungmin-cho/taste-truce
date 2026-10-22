@@ -112,3 +112,17 @@ class ObservationTests(unittest.TestCase):
         with patch.dict(os.environ,{'LLM_BASE_URL':''}):markers.append(choose_tools('no bars please',{})[0])
         for marker in markers:
             for word in ['unavailable','rejected','failed','error']:self.assertNotIn(word,marker.casefold())
+
+    def test_williamsburg_suggestions_never_widen_past_three_and_a_half_km(self):
+        scene={'area':'Williamsburg NYC'}
+        with patch.dict(os.environ,{'LLM_BASE_URL':''}):
+            _,steps=observe_replan('quieter',scene,[],{'remaining_count':6,'radius':2000,'nothing_matched':False})
+            self.assertEqual((steps[0]['arguments'],steps[0]['label']),({'radius':3500},'Search farther · 3.5 km'))
+            _,steps=observe_replan('quieter',scene,[],{'remaining_count':6,'radius':3500,'nothing_matched':False})
+            self.assertNotEqual(steps[0]['name'],'widen_radius')
+        answer={'choices':[{'message':{'tool_calls':[{'function':{'name':'widen_radius','arguments':'{"radius":5000}'}}]}}]}
+        config={'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}
+        for radius,expected in [(2000,{'radius':3500}),(3500,{'target':'current'})]:
+            with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(answer).encode())):
+                _,steps=observe_replan('quieter',scene,[],{'remaining_count':6,'radius':radius,'nothing_matched':False})
+            self.assertEqual(steps[0]['arguments'],expected)

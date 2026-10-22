@@ -6,6 +6,12 @@ import re
 import sys
 import urllib.request
 
+# At 5 km a Williamsburg search reaches Midtown Manhattan; stop at 3.5 km there.
+MAX_RADIUS = {'Seongsu':5000,'Williamsburg NYC':3500}
+
+def max_radius(area):
+    return MAX_RADIUS.get(area,5000)
+
 TOOL_PARAMS = {
     'plan': {},
     'exclude_categories': {'categories': {'type':'array','items':{'type':'string','enum':['bar','pub','nightclub']},'minItems':1}},
@@ -147,8 +153,9 @@ def apply_tools(scene, veto, actions, current_pick):
 
 def observe_replan(text, scene, actions, observation):
     """One observation turn proposes tools; the user chooses before new execution."""
-    if observation['remaining_count']<10 and observation['radius']<5000:
-        local=[{'name':'widen_radius','arguments':{'radius':5000}}]
+    limit=max_radius(scene.get('area'))
+    if observation['remaining_count']<10 and observation['radius']<limit:
+        local=[{'name':'widen_radius','arguments':{'radius':limit}}]
     elif observation['nothing_matched']:
         local=[{'name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}}]
     else:
@@ -165,6 +172,7 @@ def observe_replan(text, scene, actions, observation):
             data=post_chat(payload)
             c=data['choices'][0]['message']['tool_calls'][0]['function']
             a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
+            if a['name']=='widen_radius':a['arguments']['radius']=min(a['arguments']['radius'],limit)
             if a['name']=='widen_radius' and a['arguments']['radius']<=observation['radius']:
                 return 'Local planner',local
             if a['name'] not in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion'):raise ValueError('Unsupported follow-up')

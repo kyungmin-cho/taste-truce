@@ -33,7 +33,7 @@ The agent runs a bounded set of tools. Scores and ranks always come from Qloo re
 
 1. A free-text request becomes validated tool calls: `plan`, `exclude_categories`, `exclude_tags`, `exclude_place`, `widen_radius`, `change_occasion`, `change_area`, `prefer_budget` and `add_friend`. An LLM chooses the tools; the live demo uses `qwen/qwen3.8-27b` on Groq. Without an LLM, or when its call fails, a local intent parser handles common English and Korean requests.
 2. Each taste is resolved with `/search`. If several results are plausible, the agent stops and asks; the user can pick one or answer "None of these / skip this taste".
-3. Candidates are retrieved per friend along with the popularity baseline. If fewer than five eligible places survive, the search widens from 2 km / take 30 to 3.5 km / 40, then 5 km / 50.
+3. Candidates are retrieved per friend along with the popularity baseline. If fewer than five eligible places survive, the search widens from 2 km / take 30 to 3.5 km / 40, then 5 km / 50. In Williamsburg the search stops at 3.5 km.
 4. If the union of candidates is larger than 50, the agent keeps the largest equal top-k per person that fits and rescores that pool for everyone.
 5. The decision is maximin on ranks: lowest worst personal rank first, then lowest rank sum. If rescoring comes back incomplete, it falls back to rank sum and labels the result that way.
 6. After a veto runs, the agent observes the outcome (how many places were excluded, how many remain) and proposes one next step, for example a wider radius when only a few places are left. Nothing runs until the user clicks the suggestion.
