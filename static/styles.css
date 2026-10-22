@@ -41,7 +41,7 @@ details>summary{cursor:pointer;font-size:13px;padding:10px 0;color:var(--ink)}
 .input-summary{display:flex;flex-wrap:wrap;gap:4px 20px}
 .input-summary b{color:var(--ink)}
 .swap-change{font-weight:600;color:var(--ink)}
-.scene-bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:10px 0;margin-bottom:16px}
+.scene-bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px;border-top:1px solid var(--line);padding:10px 0;margin-bottom:8px}
 .scene-time{font-size:13px;color:var(--muted)}
 .scene-time strong{color:var(--ink)}
 .scene-bar select{background:transparent;border:0;font-weight:600;padding:6px 16px 6px 0;max-width:180px}
@@ -55,7 +55,7 @@ details>summary{cursor:pointer;font-size:13px;padding:10px 0;color:var(--ink)}
 .seed select{font-size:12px;color:var(--muted);border:0;background:transparent;align-self:flex-start;padding:0}
 .seed input{min-width:0;width:100%;padding:4px 0;border:0;border-bottom:1px solid var(--edge);background:transparent;font-size:14px}
 .friend-name:focus,.seed input:focus{border-bottom-color:var(--ink)}
-.friend-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+.seed .quiet{align-self:flex-start;padding:4px 0}.friend-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
 #share-status{font-size:13px;color:var(--muted)}
 #swap-choice{max-width:180px;padding:7px;border:1px solid var(--edge);border-radius:2px;background:#fff}
 
