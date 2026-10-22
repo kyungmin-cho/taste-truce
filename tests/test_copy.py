@@ -1,5 +1,8 @@
+import re
 import unittest
 from pathlib import Path
+
+from logic import concession
 
 ROOT=Path(__file__).resolve().parent.parent
 BANNED=['Illustrative','illustrative','simulated','Simulated','example data','not affiliated','unavailable']
@@ -33,3 +36,22 @@ class CopyTests(unittest.TestCase):
             text=(ROOT/name).read_text()
             for word in DOC_BANNED:
                 with self.subTest(file=name,word=word):self.assertNotIn(word,text)
+
+    def test_concession_cards_share_no_sentence(self):
+        # Cards keep only their own stored text; the shared pick's tags are written once, above the cards.
+        text=(ROOT/'static/app.js').read_text()
+        body=re.search(r'^function concessionText\(c\)\{(.*)\}$',text,re.M).group(1)
+        for word in ['added_tags','known for','Known for']:
+            with self.subTest(word=word):self.assertNotIn(word,body)
+        self.assertEqual(text.count('known for'),1)
+        cut=re.compile(re.search(r"c\.text\.replace\(/(.+)/,''\)",body).group(1))
+        tag=lambda name:{'id':'urn:tag:genre:place:'+name.lower(),'name':name}
+        pick={'id':'p','name':'Pick','tags':[tag('Bistro'),tag('Australian restaurant')],'ranks':[3,5,1],'observed':[True,True,True]}
+        tops=[{'id':'a','name':'First A','tags':[tag('Pub')]},{'id':'b','name':'First B','tags':[tag('Sushi bar')]},pick]
+        people=[{'name':n,'seeds':[{'query':q}]} for n,q in [('A','Film A'),('B','Artist B'),('C','Brand C')]]
+        cards=[cut.sub('',concession(person,[top,pick],pick,i)['text']) for i,(person,top) in enumerate(zip(people,tops))]
+        sentences=[{x.strip() for x in card.split('. ') if x.strip()} for card in cards]
+        for i in range(len(cards)):
+            for j in range(i+1,len(cards)):
+                with self.subTest(cards=(i,j)):self.assertFalse(sentences[i]&sentences[j])
+        for card in cards:self.assertNotIn('Bistro',card)
