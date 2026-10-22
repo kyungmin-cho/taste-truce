@@ -3,7 +3,7 @@ const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let people=[],result=null,choices={},veto={excluded:[],no_bars:false},map=null,pins=[],busy=false,steps=[],swapFrom=null,config=null,pendingAction=null;
 function renderPeople(){
-  el('people').innerHTML=people.map((p,i)=>`<article class="person" style="--color:${colors[i]}"><div class="person-head"><span class="avatar">${i+1}</span><label class="sr-only" for="name-${i}">Friend ${i+1} name</label><input id="name-${i}" class="friend-name" data-name="${i}" value="${esc(p.name)}" maxlength="60"><button class="quiet" data-remove="${i}" aria-label="Remove ${esc(p.name)}" ${people.length===1?'disabled':''}>×</button></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"><button class="quiet" data-removeseed="${i}:${j}" ${p.seeds.length===1?'disabled':''}>Remove taste</button></div>`).join('')}<button class="quiet" data-addseed="${i}" ${p.seeds.length===3?'disabled':''}>+ Add taste</button></article>`).join('');
+  el('people').innerHTML=people.map((p,i)=>`<article class="person" style="--color:${colors[i]}"><div class="person-head"><label class="sr-only" for="name-${i}">Friend ${i+1} name</label><input id="name-${i}" class="friend-name" data-name="${i}" value="${esc(p.name)}" maxlength="60"><button class="quiet" data-remove="${i}" aria-label="Remove ${esc(p.name)}" ${people.length===1?'disabled':''}>×</button></div>${p.seeds.map((s,j)=>`<div class="seed"><label class="sr-only" for="type-${i}-${j}">Seed type for friend ${i+1}, taste ${j+1}</label><select id="type-${i}-${j}" data-person="${i}" data-seed="${j}" data-field="type">${['movie','artist','brand','place','book','tv_show'].map(t=>`<option ${t===s.type?'selected':''} value="${t}">${t.replace('_',' ')}</option>`).join('')}</select><label class="sr-only" for="seed-${i}-${j}">Taste ${j+1} for ${esc(p.name)}</label><input id="seed-${i}-${j}" value="${esc(s.query)}" data-person="${i}" data-seed="${j}" data-field="query" maxlength="120"><button class="quiet" data-removeseed="${i}:${j}" ${p.seeds.length===1?'disabled':''}>Remove taste</button></div>`).join('')}<button class="quiet" data-addseed="${i}" ${p.seeds.length===3?'disabled':''}>+ Add taste</button></article>`).join('');
 }
 el('people').addEventListener('input',event=>{
   const node=event.target;if(node.dataset.name!==undefined){people[+node.dataset.name].name=node.value;return;}if(node.dataset.field){people[+node.dataset.person].seeds[+node.dataset.seed][node.dataset.field]=node.value;choices={};}
@@ -71,7 +71,7 @@ function drawMap(off){
     const marker=L.marker(point,{icon,zIndexOffset:shared?1000:0}).addTo(map).bindPopup(`<strong>${esc(e.name)}</strong><br>${esc(e.genre)}<br>${esc(e.address)}`);pins.push(marker);
   }
   if(off)result.baseline.forEach((e,i)=>pin(e,result.picks.some(p=>p.id===e.id)?'#b5bbb2':'#c77545',i+1));
-  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,colors[i],j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,result.baseline.some(p=>p.id===e.id)?'#b5bbb2':'#548739',i+2));pin(result.picks[0],'#20332b','✳',true);}
+  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,colors[i],j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,result.baseline.some(p=>p.id===e.id)?'#b5bbb2':'#548739',i+2));pin(result.picks[0],'#20332b',1,true);}
   if(points.length)map.stop().fitBounds(points,{padding:[35,35],maxZoom:15,animate:false});
 }
 function swapComparison(pick){
@@ -131,7 +131,7 @@ function renderHero(){
   el('hero').hidden=false;el('headline').textContent=COPY.headline;el('hero-title').textContent=COPY.tableTitle;
   el('swap-result').innerHTML=swapComparison(result.picks[0]);
   el('hero-summary').textContent=result.method==='maximin-rank'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):`Ranked by rank sum across ${result.pool_size} candidates.`;
-  const headers=result.people.map((p,i)=>`<th scope="col"><span class="friend-number">${i+1}</span><span class="column-name">${esc(p.name)}</span></th>`).join('');
+  const headers=result.people.map((p,i)=>`<th scope="col">${esc(p.name)}</th>`).join('');
   el('concession-table').innerHTML=`<table><thead><tr><th scope="col">Place / selection</th>${headers}</tr></thead><tbody>${(result.concession_table||[]).filter(row=>row.ranks.some(r=>r!==null)).map(row=>`<tr class="${row.id===result.picks[0].id?'fair-row':''}"><th scope="row"><small>${esc(row.label)}</small><strong>${esc(row.name)}</strong></th>${row.ranks.map(r=>`<td class="${r!==null&&r===Math.max(...row.ranks.filter(v=>v!==null))?'worst':''}">${r===null?'—':'#'+r}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 async function loadPreset(name){
@@ -150,7 +150,7 @@ async function loadPreset(name){
 }
 fetch('/api/config').then(r=>r.json()).then(async data=>{
  config=data;el('headline').textContent=COPY.headline;
- el('presets').innerHTML=Object.entries(config.presets).map(([id,p])=>`<button class="secondary" data-preset="${esc(id)}">${esc(p.label)}</button>`).join('');
+ el('presets').innerHTML=Object.entries(config.presets).map(([id,p])=>`<button data-preset="${esc(id)}">${esc(p.label)}</button>`).join('');
  el('presets').querySelectorAll('button').forEach(b=>b.onclick=()=>loadPreset(b.dataset.preset));
  if(location.hash.startsWith('#scene=')){const scene=decodeScene(location.hash);people=scene.people;el('area').value=scene.area;el('occasion').value=scene.occasion;el('radius').value=scene.start_radius;resetScene();renderPeople();await plan();}
  else await loadPreset(config.default_scene);

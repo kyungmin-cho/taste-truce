@@ -6,7 +6,7 @@ BANNED=['Illustrative','illustrative','simulated','Simulated','example data','no
 # Files a judge reads: static copy and markup, step and table text built on the server, and the README.
 UI_FILES=['static/copy.js','static/app.js','static/index.html','agent.py','logic.py','scenes.py','README.md']
 # Working labels and over-precise numbers that must not reach the screen.
-SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)','Highlight =','= not returned','not returned','not in candidate pool','returned sample','eligible no-signal','toFixed(1)','toFixed(3)','are dimmed']
+SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)','Highlight =','= not returned','not returned','not in candidate pool','returned sample','eligible no-signal','toFixed(1)','toFixed(3)','are dimmed','✳','↗','live-dot','eyebrow','YOUR SHARED TABLE','POWERED BY','avatar','friend-number','<footer','Every tool call leaves a trail','A fair pick has a reason','Resolve → retrieve']
 SCREEN_FILES=['static/copy.js','static/app.js','static/index.html']
 # Caveats and limiter timings kept out of the docs.
 DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision']
