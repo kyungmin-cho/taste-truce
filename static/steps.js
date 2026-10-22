@@ -16,7 +16,7 @@ const STEPS=(()=>{
     if(tool.startsWith('widen')){const [,from,to]=(names[0]||'').match(/(\d+) → (\d+)/)||[];return {...step,title:'Search farther',lines:from?[`${distance(+from)} → ${distance(+to)} · fewer than 5 places`]:[]};}
     if(tool==='candidate limit reached')return {...step,title:'Widest search reached',lines:[`${places(count)} left`]};
     if(tool.startsWith('bound')){const [,k]=(names[0]||'').match(/(\d+)/)||[];return {...step,title:'Shared list',lines:[`Top ${k} per friend · ${places(count)}`]};}
-    if(tool==='rank-sum')return {...step,title:'Rank-sum fallback',lines:['Some ranks are missing; searching wider']};
+    if(tool==='rank-sum')return {...step,title:'Lowest rank sum',lines:['Some ranks are missing; searching wider']};
     if(tool.startsWith('consensus'))return {...step,title:'Fair pick',list:names};
     return step;
   }
