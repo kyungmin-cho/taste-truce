@@ -87,8 +87,7 @@ details>summary{cursor:pointer;font-size:13px;padding:10px 0;color:var(--ink)}
 .decision>span{display:block;font-size:13px;color:var(--muted)}
 .decision>strong{display:block;font-size:18px;margin:4px 0}
 .decision>div{font-size:14px;font-weight:600}
-.contrast-summary{margin:12px 0;font-size:13px;font-weight:600}
-.delta-columns{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.delta-columns{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:24px}
 .delta-columns h4{font-size:13px;margin:4px 0 8px}
 .delta-columns span{display:block;font-size:13px;line-height:1.5;margin-bottom:8px}
 .delta-columns small{display:block;color:var(--muted)}
