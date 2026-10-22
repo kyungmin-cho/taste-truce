@@ -4,6 +4,8 @@ COPY server.py agent.py planner.py logic.py qloo.py sessions.py prewarm.py scene
 COPY static ./static
 RUN useradd --create-home appuser && mkdir -p /data/cache /data/state && chown -R appuser:appuser /data
 USER appuser
-ENV DEFAULT_SCENE=williamsburg PORT=3000 PYTHONDONTWRITEBYTECODE=1 QLOO_CACHE_DIR=/data/cache QLOO_STATE_DIR=/data/state
+# DEFAULT_SCENE is read from the runtime environment (williamsburg when unset).
+ENV PORT=3000 PYTHONDONTWRITEBYTECODE=1 QLOO_CACHE_DIR=/data/cache QLOO_STATE_DIR=/data/state
 EXPOSE 3000
-CMD ["python", "server.py", "--host", "0.0.0.0"]
+# Fill missing snapshots before serving; a failed prewarm still starts the server.
+CMD ["sh", "-c", "python prewarm.py || echo 'prewarm failed; saved scenes may be unavailable' >&2; exec python server.py --host 0.0.0.0"]

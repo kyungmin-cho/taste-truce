@@ -59,11 +59,10 @@ Open http://localhost:3000. To use a different env file, run `ENV_FILE=/path/to/
 
 ```sh
 docker build -t taste-truce .
-docker run --rm --env-file .env -v taste-truce-data:/data taste-truce python prewarm.py
 docker run --rm -p 3000:3000 --env-file .env -v taste-truce-data:/data taste-truce
 ```
 
-The image runs as an unprivileged user. The `/data` volume holds the private response cache, the saved scenes and the SQLite call budget, so keep it across restarts and use one instance per volume. [DEPLOY.md](DEPLOY.md) covers HTTPS cookies, proxies, health checks and scheduled prewarming.
+On start the container runs `prewarm.py`, then the server. Snapshots already on the volume are reused without Qloo calls; if prewarm fails, the server still starts and `/health` reports that the default scene is not ready. Set `DEFAULT_SCENE` in the env file or with `-e` to pick the first scene. The image runs as an unprivileged user. The `/data` volume holds the private response cache, the saved scenes and the SQLite call budget, so keep it across restarts and use one instance per volume. [DEPLOY.md](DEPLOY.md) covers HTTPS cookies, proxies, health checks and scheduled prewarming.
 
 ## Configuration
 
