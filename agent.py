@@ -3,7 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import time
 from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table
 from qloo import QlooError, BudgetError
-from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate
+from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for
 
 AREAS = {'Seongsu': (127.0557,37.5445), 'Williamsburg NYC': (-73.9571,40.7081)}
 DEFAULT_PEOPLE = [
@@ -70,7 +70,7 @@ class Agent:
         except PlannerError as err:
             step(err.planner,['No supported tool matched; ask for a condition'],0,(time.perf_counter()-t)*1000)
             raise
-        step(planner,[a['name']+' '+str(a['arguments']) for a in actions],len(actions),(time.perf_counter()-t)*1000)
+        step(planner,[a['name']+' · '+label_for(a) for a in actions],len(actions),(time.perf_counter()-t)*1000)
         scene,veto,needs_taste=apply_tools(scene,veto,actions,body.get('current_pick'))
         people,area,occasion,start_radius=(scene[k] for k in ('people','area','occasion','start_radius'))
         if needs_taste:
@@ -191,7 +191,7 @@ class Agent:
             t=time.perf_counter()
             source,suggestions=observe_replan(text,scene,actions,observation)
             result['suggestions']=suggestions
-            step('observe → replan · '+source,[str(observation)]+[s['label'] for s in suggestions],len(suggestions),(time.perf_counter()-t)*1000)
+            step('observe → replan · '+source,[f"{observation['remaining_count']} places left · {observation['excluded_count']} excluded · {observation['radius']/1000:g} km"]+[s['label'] for s in suggestions],len(suggestions),(time.perf_counter()-t)*1000)
         result['steps']=steps
         result['elapsed_ms']=round((time.perf_counter()-started)*1000)
         return result

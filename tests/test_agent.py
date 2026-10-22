@@ -101,7 +101,7 @@ class ReviewRegressionTests(unittest.TestCase):
     def test_unknown_intent_records_parser_and_does_not_call_qloo(self):
         events=[];q=FakeQloo()
         with self.assertRaises(ValueError):Agent(q).run('s',{'veto_text':'something completely unknown'},events.append)
-        self.assertEqual(q.requests,[]);self.assertIn('Local intent parser',events[0]['step']['tool'])
+        self.assertEqual(q.requests,[]);self.assertEqual(events[0]['step']['tool'],'Local planner')
 
     def test_friend_request_pauses_before_network(self):
         q=FakeQloo();result=Agent(q).run('s',{'veto_text':'add a vegetarian friend'},lambda _:None)

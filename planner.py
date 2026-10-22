@@ -51,6 +51,24 @@ def local_tools(text):
     if not actions:raise ValueError('Please name a condition: no bars, somewhere quieter, not that place, cheaper, search farther, a neighborhood, or add a friend.')
     return actions
 
+def join_words(words):
+    return words[0] if len(words)==1 else ', '.join(words[:-1])+' and '+words[-1]
+
+def label_for(action):
+    """A short button label; arguments never appear as raw data."""
+    name,args=action['name'],action['arguments']
+    if name=='exclude_categories':return 'Exclude '+join_words([x+'s' for x in args['categories']])
+    if name=='exclude_tags':
+        quiet=any(t in ('Loud','Busy','Lively') for t in args['tags']);pricey=any('xpensive' in t for t in args['tags'])
+        return 'Quieter and cheaper places' if quiet and pricey else ('Somewhere quieter' if quiet else 'Skip expensive places')
+    if name=='exclude_place':return 'Try a different shared pick'
+    if name=='widen_radius':return f"Search farther · {args['radius']/1000:g} km"
+    if name=='change_occasion':return 'Switch to '+args['occasion'].lower()
+    if name=='change_area':return 'Move to '+args['area']
+    if name=='prefer_budget':return 'Cheapest places only' if args['max_price_level']==1 else 'Cheaper places'
+    if name=='add_friend':return 'Add '+args['name']
+    return 'Plan this scene'
+
 def validate(actions):
     if not isinstance(actions,list) or not 1<=len(actions)<=8:raise ValueError('Invalid tools')
     for a in actions:
@@ -103,8 +121,8 @@ def choose_tools(text, scene):
             return 'LLM planner',actions
         except Exception as err:
             llm_failed('planner',err)
-            return parse_local(text,'Local intent parser · LLM unavailable')
-    return parse_local(text,'Local intent parser')
+            return parse_local(text,'Local planner')
+    return parse_local(text,'Local planner')
 
 def apply_tools(scene, veto, actions, current_pick):
     scene=copy.deepcopy(scene);veto=copy.deepcopy(veto);needs_taste=False
@@ -130,11 +148,12 @@ def apply_tools(scene, veto, actions, current_pick):
 def observe_replan(text, scene, actions, observation):
     """One observation turn proposes tools; the user chooses before new execution."""
     if observation['remaining_count']<10 and observation['radius']<5000:
-        local=[{'label':'Search farther · 5 km','text':'search farther','name':'widen_radius','arguments':{'radius':5000}}]
+        local=[{'name':'widen_radius','arguments':{'radius':5000}}]
     elif observation['nothing_matched']:
-        local=[{'label':'Try recorded quieter tags','text':'somewhere quieter','name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}}]
+        local=[{'name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}}]
     else:
-        local=[{'label':'Try a different shared pick','text':'not that place please','name':'exclude_place','arguments':{'target':'current'}}]
+        local=[{'name':'exclude_place','arguments':{'target':'current'}}]
+    local=[{'label':label_for(a),**a} for a in local]
     if all(os.getenv(k) for k in ['LLM_BASE_URL','LLM_MODEL','LLM_API_KEY']):
         try:
             calls=[{'id':'executed_'+str(i),'type':'function','function':{'name':a['name'],'arguments':json.dumps(a['arguments'])}} for i,a in enumerate(actions)]
@@ -147,10 +166,10 @@ def observe_replan(text, scene, actions, observation):
             c=data['choices'][0]['message']['tool_calls'][0]['function']
             a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
             if a['name']=='widen_radius' and a['arguments']['radius']<=observation['radius']:
-                return 'Local next steps · repeated radius rejected',local
+                return 'Local planner',local
             if a['name'] not in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion'):raise ValueError('Unsupported follow-up')
-            return 'LLM planner',[{'label':a['name'].replace('_',' ')+' · '+str(a['arguments']),**a}]
+            return 'LLM planner',[{'label':label_for(a),**a}]
         except Exception as err:
             llm_failed('observe',err)
-            return 'Local next steps · LLM unavailable',local
-    return 'Local next steps',local
+            return 'Local planner',local
+    return 'Local planner',local

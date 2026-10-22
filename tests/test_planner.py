@@ -3,7 +3,8 @@ import json
 import os
 import unittest
 from unittest.mock import patch
-from planner import choose_tools, local_tools, apply_tools, validate, observe_replan
+import itertools
+from planner import TOOL_PARAMS, choose_tools, local_tools, apply_tools, validate, observe_replan, label_for
 
 class PlannerTests(unittest.TestCase):
     def test_common_phrasings_and_combined_conditions(self):
@@ -22,7 +23,7 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(network.call_args[1]['timeout'],8.0)
         with patch.dict(os.environ,config),patch('urllib.request.urlopen',side_effect=OSError()):
             planner,actions=choose_tools('no bars please',{})
-            self.assertIn('LLM unavailable',planner);self.assertEqual(actions[0]['name'],'exclude_categories')
+            self.assertEqual(planner,'Local planner');self.assertEqual(actions[0]['name'],'exclude_categories')
     def test_llm_timeout_is_configurable_and_failures_log_only_the_status(self):
         import contextlib,urllib.error
         config={'LLM_BASE_URL':'http://localhost:9999/v1','LLM_API_KEY':'synthetic-test-token','LLM_MODEL':'test','LLM_TIMEOUT_SECONDS':'3'}
@@ -30,7 +31,7 @@ class PlannerTests(unittest.TestCase):
         log=io.StringIO()
         with patch.dict(os.environ,config),patch('urllib.request.urlopen',side_effect=denied) as network,contextlib.redirect_stderr(log):
             planner,_=choose_tools('no bars please',{})
-        self.assertIn('LLM unavailable',planner);self.assertEqual(network.call_args[1]['timeout'],3.0)
+        self.assertEqual(planner,'Local planner');self.assertEqual(network.call_args[1]['timeout'],3.0)
         self.assertIn('planner: LLM unavailable (403)',log.getvalue());self.assertNotIn('synthetic-test-token',log.getvalue())
     def test_planner_and_observe_requests_send_an_explicit_user_agent(self):
         # Cloudflare-fronted providers reject the default Python-urllib agent with 403 (error 1010).
@@ -83,4 +84,31 @@ class ObservationTests(unittest.TestCase):
         config={'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}
         with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(answer).encode())):
             source,steps=observe_replan('search farther',{},[{'name':'widen_radius','arguments':{'radius':3500}}],{'remaining_count':23,'radius':3500,'nothing_matched':False})
-            self.assertIn('repeated radius rejected',source);self.assertEqual(steps[0]['name'],'exclude_place')
+            self.assertEqual(source,'Local planner');self.assertEqual(steps[0]['name'],'exclude_place')
+
+    def test_llm_suggestion_gets_a_short_readable_label(self):
+        answer={'choices':[{'message':{'tool_calls':[{'function':{'name':'exclude_tags','arguments':'{"tags":["Loud","Busy","Lively"]}'}}]}}]}
+        config={'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}
+        with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(answer).encode())):
+            source,steps=observe_replan('no bars please',{},[{'name':'exclude_categories','arguments':{'categories':['bar']}}],{'remaining_count':12,'radius':2000,'nothing_matched':False})
+        self.assertEqual(source,'LLM planner');self.assertEqual(steps[0]['label'],'Somewhere quieter')
+        self.assertEqual(label_for({'name':'exclude_categories','arguments':{'categories':['bar']}}),'Exclude bars')
+        self.assertEqual(label_for({'name':'prefer_budget','arguments':{'max_price_level':2}}),'Cheaper places')
+
+    def test_every_tool_value_has_a_label_without_raw_data(self):
+        values={'array':lambda spec:[[x] for x in spec['items']['enum']]+[spec['items']['enum']],'string':lambda spec:spec.get('enum',['Vegetarian friend']),
+                'integer':lambda spec:spec['enum'],'boolean':lambda spec:[True,False]}
+        for name,props in TOOL_PARAMS.items():
+            for combo in itertools.product(*[values[spec['type']](spec) for spec in props.values()]):
+                action={'name':name,'arguments':dict(zip(props,combo))}
+                label=label_for(validate([action])[0])
+                with self.subTest(action=action):
+                    self.assertTrue(label.strip());self.assertLessEqual(len(label),40)
+                    for ch in '{}[]\'":_':self.assertNotIn(ch,label)
+
+    def test_fallback_markers_are_neutral(self):
+        with patch.dict(os.environ,{'LLM_BASE_URL':'http://localhost/v1','LLM_API_KEY':'test','LLM_MODEL':'test'}),patch('urllib.request.urlopen',side_effect=OSError()),patch('sys.stderr',io.StringIO()):
+            markers=[choose_tools('no bars please',{})[0],observe_replan('no bars',{},[],{'remaining_count':30,'radius':2000,'nothing_matched':False})[0]]
+        with patch.dict(os.environ,{'LLM_BASE_URL':''}):markers.append(choose_tools('no bars please',{})[0])
+        for marker in markers:
+            for word in ['unavailable','rejected','failed','error']:self.assertNotIn(word,marker.casefold())
