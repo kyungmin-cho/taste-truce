@@ -133,7 +133,7 @@ class Qloo:
                     except (ValueError, KeyError):
                         pass
                 raise
-            req = urllib.request.Request(self.base+path+'?'+urllib.parse.urlencode(params), headers={'X-Api-Key': self.key, 'Accept': 'application/json'})
+            req = urllib.request.Request(self.base+path+'?'+urllib.parse.urlencode(params), headers={'X-Api-Key': self.key, 'Accept': 'application/json', 'User-Agent': 'TasteTruce/1.0'})
             try:
                 with urllib.request.urlopen(req, timeout=12) as response:
                     data = json.load(response)

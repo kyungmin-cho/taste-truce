@@ -16,6 +16,12 @@ class TransportTests(unittest.TestCase):
             self.assertFalse(hit);self.assertTrue(cached);self.assertEqual(first,second)
             self.assertEqual(q.used('session'),1);self.assertEqual(network.call_count,1)
             with self.assertRaises(QlooError):q.request('session','/search',{'query':'B'})
+    def test_upstream_request_sends_an_explicit_user_agent(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory,'QLOO_API_KEY':'synthetic-test-token'}):
+            with patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps({'success':True,'results':[]}).encode())) as network:
+                Qloo().request('session','/search',{'query':'A'})
+            headers={k.lower():v for k,v in network.call_args[0][0].header_items()}
+            self.assertTrue(headers.get('user-agent'));self.assertFalse(headers['user-agent'].startswith('Python-urllib'))
     def test_monthly_budget_survives_restart_and_serializes_workers(self):
         from concurrent.futures import ThreadPoolExecutor
         import sqlite3
