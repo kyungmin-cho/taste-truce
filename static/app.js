@@ -144,7 +144,7 @@ async function loadPreset(name){
     const response=await fetch('/scene/'+name);const data=await response.json();
     if(!response.ok)throw new Error(data.error);
     result=data.result;choices=result.choices||{};veto=structuredClone(result.veto);people=structuredClone(result.people);renderPeople();el('taste-off').checked=false;
-    (result.steps||[]).forEach(addStep);renderResult();el('status').textContent=sceneLine();performance.mark('meaningful-render');
+    (result.steps||[]).forEach(addStep);el('steps').scrollTop=0;renderResult();el('status').textContent=sceneLine();performance.mark('meaningful-render');
   }catch(err){el('status').textContent=err.message;el('friend-editor').open=true;}
   finally{setBusy(false);}
 }
