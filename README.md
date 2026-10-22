@@ -38,7 +38,7 @@ The agent runs a bounded set of tools. Scores and ranks always come from Qloo re
 5. The decision is maximin on ranks: lowest worst personal rank first, then lowest rank sum. If rescoring comes back incomplete, it falls back to rank sum and labels the result that way.
 6. After a veto runs, the agent observes the outcome (how many places were excluded, how many remain) and proposes one next step, for example a wider radius when only a few places are left. Nothing runs until the user clicks the suggestion.
 
-The Agent steps panel streams every step with its tool name, inputs, result count, latency, and whether it came from cache.
+The Agent steps panel streams every step with its tool name and inputs, and the result count of each Qloo call.
 
 ## Run locally
 
@@ -109,4 +109,4 @@ This repository contains no Qloo data and no keys. Qloo responses are fetched at
 - `logic.py`: eligibility, maximin consensus, the concession table.
 - `qloo.py`: server-only Qloo transport, rate limit, cache and budgets.
 - `sessions.py`, `scenes.py`, `prewarm.py`: session limits, presets and saved scenes, prewarming.
-- `static/`: the interface; `copy.js` holds the first-screen text.
+- `static/`: the interface; `copy.js` holds the first-screen text and `steps.js` names the Agent steps panel rows.
