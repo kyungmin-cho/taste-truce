@@ -149,6 +149,6 @@ aside{border-left:1px solid var(--line);padding:24px;position:sticky;top:0;heigh
   #concession-table th:first-child{width:46%}#concession-table th,#concession-table td{padding:8px 4px}
   #concession-table tbody th strong{font-size:13px}#concession-table thead th{font-size:11px}
   .people{grid-template-columns:1fr}.delta-columns{grid-template-columns:1fr}
-  #map{height:270px}.veto-row{flex-wrap:wrap}
+  #map{height:270px}.veto-row{flex-wrap:wrap}.veto-row input{flex:1 1 100%}
   .place{gap:8px;grid-template-columns:24px 1fr auto}.place button{grid-column:3}.shortlist-heading>span{display:none}
 }
