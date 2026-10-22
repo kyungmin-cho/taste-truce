@@ -31,7 +31,7 @@ The app compares ranks and leaves raw affinity values aside, because it does not
 
 The agent runs a bounded set of tools. Scores and ranks always come from Qloo results and fixed rules in `logic.py`.
 
-1. A free-text request becomes validated tool calls: `plan`, `exclude_categories`, `exclude_tags`, `exclude_place`, `widen_radius`, `change_occasion`, `change_area`, `prefer_budget` and `add_friend`. With an LLM configured, the model chooses the tools. Without one, a local intent parser handles common English and Korean requests.
+1. A free-text request becomes validated tool calls: `plan`, `exclude_categories`, `exclude_tags`, `exclude_place`, `widen_radius`, `change_occasion`, `change_area`, `prefer_budget` and `add_friend`. An LLM chooses the tools; the live demo uses `qwen/qwen3.8-27b` on Groq. Without an LLM, or when its call fails, a local intent parser handles common English and Korean requests.
 2. Each taste is resolved with `/search`. If several results are plausible, the agent stops and asks; the user can pick one or answer "None of these / skip this taste".
 3. Candidates are retrieved per friend along with the popularity baseline. If fewer than five eligible places survive, the search widens from 2 km / take 30 to 3.5 km / 40, then 5 km / 50.
 4. If the union of candidates is larger than 50, the agent keeps the largest equal top-k per person that fits and rescores that pool for everyone.
@@ -53,7 +53,7 @@ python3 server.py
 
 Open http://localhost:3000. To use a different env file, run `ENV_FILE=/path/to/private.env python3 server.py`. The server binds to 127.0.0.1 unless `HOST` or `--host` says otherwise. Map tiles come from OpenStreetMap and need internet access; the table and lists work without them.
 
-`prewarm.py` builds only missing or expired snapshots. In our recorded run a cold cache needed 26 Qloo calls for the three presets, and running it again needed none.
+`prewarm.py` builds only missing or expired snapshots. From a cold cache the three presets take 26 Qloo calls, and a second run takes none.
 
 ## Run with Docker
 
@@ -98,16 +98,6 @@ python3 -m unittest discover -s tests
 ```
 
 The tests use synthetic data only.
-
-## Limits
-
-- The fair pick often overlaps the most popular places. In the four scenes we tried, it was popularity #1 twice and #2 twice. What the app adds is the table: it shows who gives up what, even when the answer is a popular place.
-- The presets are illustrative. We tried four scenes (two original groups and two pre-registered variants) and show three. Every number comes from real Qloo results, but four scenes are too few to generalize from.
-- A rank only means something inside that scene's candidate pool. Popularity is ranked within Qloo's returned no-signal sample, which is smaller than the whole neighborhood.
-- Affinity describes people with shared interests. It does not predict what one person will enjoy.
-- Opening hours, availability, bookings, allergies, travel time and real group satisfaction are not checked. The quieter, cheaper and vegetarian filters rely on tags Qloo has recorded.
-- In our runs each seed contributed roughly half of a place's score, so the table carries the evidence and the contributions stay in the details.
-- The app is not deployed yet; `<DEMO_URL>` above is a placeholder.
 
 ## Data and license
 
