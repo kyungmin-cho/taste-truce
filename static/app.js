@@ -132,7 +132,7 @@ function renderHero(){
   el('saved-time').textContent=result.saved_utc?'saved '+result.saved_utc:'computed now';
   el('hero-summary').textContent=result.method==='maximin-rank'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):`Ranked by rank sum across ${result.pool_size} candidates.`;
   const headers=result.people.map((p,i)=>`<th scope="col"><span class="friend-number">${i+1}</span><span class="column-name">${esc(p.name)}</span></th>`).join('');
-  el('concession-table').innerHTML=`<table><thead><tr><th scope="col">Place / selection</th>${headers}</tr></thead><tbody>${(result.concession_table||[]).map(row=>`<tr class="${row.id===result.picks[0].id?'fair-row':''}"><th scope="row"><small>${esc(row.label)}</small><strong>${esc(row.name)}</strong></th>${row.ranks.map(r=>`<td class="${r!==null&&r===Math.max(...row.ranks.filter(v=>v!==null))?'worst':''}">${r===null?'—':'#'+r}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  el('concession-table').innerHTML=`<table><thead><tr><th scope="col">Place / selection</th>${headers}</tr></thead><tbody>${(result.concession_table||[]).filter(row=>row.ranks.some(r=>r!==null)).map(row=>`<tr class="${row.id===result.picks[0].id?'fair-row':''}"><th scope="row"><small>${esc(row.label)}</small><strong>${esc(row.name)}</strong></th>${row.ranks.map(r=>`<td class="${r!==null&&r===Math.max(...row.ranks.filter(v=>v!==null))?'worst':''}">${r===null?'—':'#'+r}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
 async function loadPreset(name){
   if(busy)return;
