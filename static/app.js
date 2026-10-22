@@ -1,8 +1,8 @@
-// Friends are told apart by gray shade and name; the accent marks the group's shortlist.
+// Friends are told apart by gray shade and name; only the shared pick uses the accent.
 const ACCENT='#6363b0',INK='#28323c',WHITE='#ffffff';
 const shades=['#2f353b','#4e545a','#6c7279','#868c92','#a0a6ac'];
 const friendPin=i=>({fill:shades[i],text:i<3?WHITE:INK});
-const pinStyles={pick:{fill:ACCENT,text:WHITE},shortlist:{fill:WHITE,text:ACCENT,border:ACCENT},popular:{fill:shades[1],text:WHITE},both:{fill:WHITE,text:shades[1],border:shades[3]}};
+const pinStyles={pick:{fill:ACCENT,text:WHITE},shortlist:{fill:WHITE,text:INK,border:shades[3]},popular:{fill:shades[1],text:WHITE},both:{fill:WHITE,text:shades[1],border:shades[3]}};
 const swatch=s=>`<i style="background:${s.fill};${s.border?`border-color:${s.border}`:''}"></i>`;
 const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
