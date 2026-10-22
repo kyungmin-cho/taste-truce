@@ -8,7 +8,8 @@ UI_FILES=['static/copy.js','static/steps.js','static/app.js','static/index.html'
 # Working labels and over-precise numbers that must not reach the screen.
 SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)','Highlight =','= not returned','not returned','not in candidate pool','returned sample','eligible no-signal','toFixed(1)','toFixed(3)','are dimmed','✳','↗','live-dot','eyebrow','YOUR SHARED TABLE','POWERED BY','avatar','friend-number','<footer','Every tool call leaves a trail','A fair pick has a reason','Resolve → retrieve',
   'take ','bound candidate union','maximin-rank','entity_ids','Direct plan','validate category','widen → retry',' entities`','All input names',
-  'overlap with popularity','Top 3:','left out</div>','No popularity sample','In both top 10s','eligible places','recorded conditions']
+  'overlap with popularity','Top 3:','left out</div>','No popularity sample','In both top 10s','eligible places','recorded conditions',
+  'friendPin','top 3</span>']
 SCREEN_FILES=['static/copy.js','static/steps.js','static/app.js','static/index.html']
 # Caveats and limiter timings kept out of the docs.
 DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision']

@@ -94,6 +94,7 @@ details>summary{cursor:pointer;font-size:13px;padding:10px 0;color:var(--ink)}
 
 #map{height:300px;border:1px solid var(--line);z-index:0}
 .leaflet-container{font-family:inherit}
+.leaflet-container .leaflet-control-attribution a{color:var(--muted)}
 .leaflet-tile-pane{filter:grayscale(1)}
 .leaflet-bar,.leaflet-popup-content-wrapper{box-shadow:none!important;border:1px solid var(--edge)!important;border-radius:0!important}
 .leaflet-bar a{border-radius:0!important}

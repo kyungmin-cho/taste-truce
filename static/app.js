@@ -1,8 +1,6 @@
-// Friends are told apart by gray shade and name; only the shared pick uses the accent.
-const ACCENT='#6363b0',INK='#28323c',WHITE='#ffffff';
-const shades=['#2f353b','#4e545a','#6c7279','#868c92','#a0a6ac'];
-const friendPin=i=>({fill:shades[i],text:i<3?WHITE:INK});
-const pinStyles={pick:{fill:ACCENT,text:WHITE},shortlist:{fill:WHITE,text:INK,border:shades[3]},popular:{fill:shades[1],text:WHITE},both:{fill:WHITE,text:shades[1],border:shades[3]}};
+// Map pins carry the list numbers; only the shared pick uses the accent.
+const ACCENT='#6363b0',INK='#28323c',WHITE='#ffffff',EDGE='#868c92';
+const pinStyles={pick:{fill:ACCENT,text:WHITE},shortlist:{fill:WHITE,text:INK,border:EDGE}};
 const swatch=s=>`<i style="background:${s.fill};${s.border?`border-color:${s.border}`:''}"></i>`;
 const el=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -64,7 +62,7 @@ function showQuestions(questions){
 }
 function drawMap(off){
   if(!window.L){el('map-fallback').hidden=false;el('map-fallback').textContent='The map could not load. Place names and ranks remain available below.';return;}
-  if(!map){map=L.map('map',{scrollWheelZoom:false}).setView([40.7081,-73.9571],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);}
+  if(!map){map=L.map('map',{scrollWheelZoom:false}).setView([40.7081,-73.9571],14);L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');}
   map.invalidateSize();pins.forEach(p=>map.removeLayer(p));pins=[];
   const points=[];
   function pin(e,style,label,shared=false){
@@ -73,8 +71,9 @@ function drawMap(off){
     const icon=L.divIcon({className:'',html:`<div class="pin ${shared?'consensus-pin':''}" style="background:${style.fill};color:${style.text};${style.border?`border-color:${style.border};`:''}width:30px;height:30px">${label}</div>`,iconSize:[shared?36:30,shared?36:30],iconAnchor:[15,15]});
     const marker=L.marker(point,{icon,zIndexOffset:shared?1000:0}).addTo(map).bindPopup(`<strong>${esc(e.name)}</strong><br>${esc(e.genre)}<br>${esc(e.address)}`);pins.push(marker);
   }
-  if(off)result.baseline.forEach((e,i)=>pin(e,result.picks.some(p=>p.id===e.id)?pinStyles.both:pinStyles.popular,i+1));
-  else{result.personal.forEach((rows,i)=>rows.slice(0,3).forEach((e,j)=>pin(e,friendPin(i),j+1)));result.picks.slice(1).forEach((e,i)=>pin(e,pinStyles.shortlist,i+2));pin(result.picks[0],pinStyles.pick,1,true);}
+  const rows=off?result.baseline:result.picks,pick=result.picks[0];
+  rows.forEach((e,i)=>{if(e.id!==pick.id)pin(e,pinStyles.shortlist,i+1);});
+  const at=rows.findIndex(e=>e.id===pick.id);if(at>=0)pin(rows[at],pinStyles.pick,at+1,true);
   if(points.length)map.stop().fitBounds(points,{padding:[35,35],maxZoom:15,animate:false});
 }
 function swapComparison(pick){
@@ -97,7 +96,7 @@ function renderResult(){
   renderContrast(off);
   const popular=result.contrast.baseline_count;el('overlap').textContent=popular<10?`${result.overlap} of ${popular} popular places`:`${result.overlap} of the popular top ${popular}`;
   el('timing').textContent=`Within ${result.radius/1000} km`;
-  el('legend').innerHTML=off?`<span>${swatch(pinStyles.popular)}Popularity top 10</span><span>${swatch(pinStyles.both)}Also on the taste shortlist</span>`:result.people.map((p,i)=>`<span>${swatch(friendPin(i))}${esc(p.name)} top 3</span>`).join('')+`<span>${swatch(pinStyles.shortlist)}Shortlist</span><span>${swatch(pinStyles.pick)}Shared pick</span>`;
+  el('legend').innerHTML=`<span>${swatch(pinStyles.shortlist)}${off?'Popularity top 10':'Shortlist'}</span>`+(!off||result.baseline.some(e=>e.id===pick.id)?`<span>${swatch(pinStyles.pick)}Shared pick</span>`:'');
   el('baseline-note').hidden=!off;el('concessions').hidden=off;
   el('concessions').innerHTML=result.concessions.map((c,i)=>`<article class="concession"><strong>${esc(c.person)}</strong><span class="rank">${c.rank===null?'Rank unknown':(c.rank===1?'Still #1':`#1 → #${c.rank} · ${c.rank_drop} ${c.rank_drop===1?'place':'places'}`)}</span><small class="place-context">Personal #1 · ${esc(result.personal[i][0]?.genre)} · ${esc(result.personal[i][0]?.address)}</small><div>${esc(concessionText(c))}</div><p class="seed-contributions">${c.contributions?.length?'Taste signal contributions: '+c.contributions.map(x=>`${esc(x.seed)} ${Math.round(x.score*100)}%`).join(' · '):''}</p></article>`).join('');
   const inputs=result.people.map(p=>`<span><b>${esc(p.name)}</b>: ${p.seeds.map(s=>esc(s.query)).join(' + ')}</span>`).join('');
