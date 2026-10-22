@@ -6,7 +6,7 @@ BANNED=['Illustrative','illustrative','simulated','Simulated','example data','no
 # Files a judge reads: static copy and markup, step and table text built on the server, and the README.
 UI_FILES=['static/copy.js','static/app.js','static/index.html','agent.py','logic.py','scenes.py','README.md']
 # Working labels and over-precise numbers that must not reach the screen.
-SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)']
+SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)','Highlight =','= not returned']
 SCREEN_FILES=['static/copy.js','static/app.js','static/index.html']
 
 class CopyTests(unittest.TestCase):
