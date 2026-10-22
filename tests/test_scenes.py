@@ -44,3 +44,8 @@ class SceneTests(unittest.TestCase):
             save_scene(q,'williamsburg',{'picks':[{'id':'a'}],'concession_table':[row('Popularity #1','a'),row('One #1','b'),row('Fair pick','a')]})
             table=read_scene(q,'williamsburg')['concession_table']
             self.assertEqual([(r['id'],r['label']) for r in table],[('a','Fair pick · Popularity #1'),('b','One #1')])
+    def test_saved_steps_show_labels_instead_of_tool_arguments(self):
+        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'QLOO_CACHE_DIR':root,'QLOO_STATE_DIR':root}):
+            q=Qloo();steps=[{'tool':'Direct plan · no condition','entities':['plan {}']},{'tool':'LLM planner','entities':["exclude_categories {'categories': ['bar']}"]},{'tool':'/search','entities':['Miles Davis']}]
+            save_scene(q,'majority',{'steps':steps})
+            self.assertEqual([r['entities'] for r in read_scene(q,'majority')['steps']],[['plan · Plan this scene'],['exclude_categories · Exclude bars'],['Miles Davis']])

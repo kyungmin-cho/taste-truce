@@ -1,10 +1,13 @@
 """Preset inputs and private, durable computed scene snapshots."""
+import ast
 import copy
 import json
 import os
+import re
 import time
 from agent import DEFAULT_PEOPLE
 from logic import merge_rows
+from planner import TOOL_PARAMS, label_for
 
 PRESETS={
     'seongsu':{'label':'Seongsu','area':'Seongsu','people':DEFAULT_PEOPLE},
@@ -25,6 +28,12 @@ def scene_body(name):
 
 def scene_key(name):return '/scene/'+name
 
+def readable_step(text):
+    match=re.fullmatch(r'(\w+) (\{.*\})',text)
+    if not match or match[1] not in TOOL_PARAMS:return text
+    try:return match[1]+' · '+label_for({'name':match[1],'arguments':ast.literal_eval(match[2])})
+    except (ValueError,SyntaxError,KeyError,TypeError):return text
+
 def save_scene(q,name,result):
     q.save(scene_key(name),{}, {'version':VERSION,'result':result})
 
@@ -39,6 +48,8 @@ def read_scene(q,name):
         result=copy.deepcopy(data['result'])
         # Snapshots saved before rows were merged still show one row per place.
         if result.get('concession_table'):result['concession_table']=merge_rows(result['concession_table'])
+        # Snapshots saved before steps used labels list tool arguments as Python data.
+        for row in result.get('steps') or []:row['entities']=[readable_step(x) if isinstance(x,str) else x for x in row.get('entities') or []]
         result['saved_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(item['saved']))
         return result
     except (OSError,KeyError,ValueError,TypeError):return None
