@@ -89,15 +89,13 @@ On start the container runs `prewarm.py`, then the server. Snapshots already on 
 | `HOST`, `PORT` | `127.0.0.1`, `3000` | Bind address. |
 | `ENV_FILE` | `./.env` | Env file loaded at startup. |
 
-Every Qloo call passes through a shared limiter that starts at most four requests in any 1.25-second window, at least 0.30 seconds apart. Identical requests in flight share one call.
+Every Qloo call passes through one shared rate limiter, and identical requests in flight share one call.
 
 ## Tests
 
 ```sh
 python3 -m unittest discover -s tests
 ```
-
-The tests use synthetic data only.
 
 ## Data and license
 

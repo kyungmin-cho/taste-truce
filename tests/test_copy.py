@@ -8,6 +8,9 @@ UI_FILES=['static/copy.js','static/app.js','static/index.html','agent.py','logic
 # Working labels and over-precise numbers that must not reach the screen.
 SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved scene','CACHE','STALE','latency_ms','elapsed_ms','toFixed(2)','Highlight =','= not returned','not returned','not in candidate pool','returned sample','eligible no-signal','toFixed(1)','toFixed(3)','are dimmed']
 SCREEN_FILES=['static/copy.js','static/app.js','static/index.html']
+# Caveats and limiter timings kept out of the docs.
+DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision']
+DOC_FILES=['README.md','DEPLOY.md']
 
 class CopyTests(unittest.TestCase):
     def test_ui_copy_has_no_hedges(self):
@@ -20,4 +23,10 @@ class CopyTests(unittest.TestCase):
         for name in SCREEN_FILES:
             text=(ROOT/name).read_text()
             for word in SCREEN_BANNED:
+                with self.subTest(file=name,word=word):self.assertNotIn(word,text)
+
+    def test_docs_have_no_caveats(self):
+        for name in DOC_FILES:
+            text=(ROOT/name).read_text()
+            for word in DOC_BANNED:
                 with self.subTest(file=name,word=word):self.assertNotIn(word,text)
