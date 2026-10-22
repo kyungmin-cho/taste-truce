@@ -4,7 +4,7 @@ from pathlib import Path
 
 ROOT=Path(__file__).resolve().parent.parent
 PRIMARY,ACCENT='#28323c','#6363b0'
-STYLE_FILES=['static/styles.css','static/app.js','static/index.html']
+STYLE_FILES=['static/styles.css','static/steps.js','static/app.js','static/index.html']
 
 def channels(value):
     value=value.lstrip('#')

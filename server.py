@@ -49,7 +49,7 @@ class Handler(BaseHTTPRequestHandler):
             name=route.split('/')[-1]
             result=read_scene(self.server.qloo,default_scene() if name=='default' else name)
             return self.json_response(200 if result else 503,{'result':result,'error':None if result else 'The saved scene is still being prepared. Please reload in a minute.'})
-        files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js','/copy.js':'copy.js'}
+        files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js','/copy.js':'copy.js','/steps.js':'steps.js'}
         vendor=['leaflet.js','leaflet.css','LICENSE','images/layers.png','images/layers-2x.png','images/marker-icon.png','images/marker-icon-2x.png','images/marker-shadow.png']
         files.update({'/vendor/leaflet/'+name:'vendor/leaflet/'+name for name in vendor})
         if route not in files:return self.json_response(404,{'error':'Not found'})

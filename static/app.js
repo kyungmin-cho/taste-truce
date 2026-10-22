@@ -16,9 +16,7 @@ el('people').addEventListener('input',event=>{
 function addStep(row){
   steps.push(row);el('step-count').textContent=String(steps.length).padStart(2,'0');
   if(steps.length===1)el('steps').innerHTML='';
-  const li=document.createElement('li');
-  const names=row.entities||[];
-  li.innerHTML=`<strong>${esc(row.tool)}</strong><small>${esc(names.slice(0,3).join(' · '))}${names.length>3?` · +${names.length-3} entities`:''}</small><div class="step-meta">${row.count} returned</div>${names.length>3?`<details><summary>All input names${row.entity_ids?' and IDs':''}</summary><small>${names.map(esc).join('<br>')}${row.entity_ids?'<hr>'+row.entity_ids.map(esc).join('<br>'):''}</small></details>`:''}`;
+  const li=document.createElement('li');li.innerHTML=STEPS.html(row);
   el('steps').append(li);el('steps').scrollTop=el('steps').scrollHeight;
 }
 function setBusy(value){
@@ -95,7 +93,7 @@ function renderResult(){
   const pick=result.picks[0];renderHero();el('friend-editor').open=false;
   el('pick-name').textContent=off?(result.baseline[0]?.name||'No popularity sample'):pick.name;
   const displayed=off?result.baseline[0]:pick;el('pick-context').textContent=displayed?[displayed.genre,displayed.address].filter(Boolean).join(' · '):'';
-  el('fairness').textContent=off?`${result.baseline.length} baseline places`:(result.method==='maximin-rank'?`Everyone within top ${pick.worst_rank} of ${result.pool_size}`:'Rank-sum fallback · missing ranks penalized');
+  el('fairness').textContent=off?`${result.baseline.length} baseline places`:(result.method!=='rank-sum'?`Everyone within top ${pick.worst_rank} of ${result.pool_size}`:'Rank-sum fallback · missing ranks penalized');
   renderContrast(off);
   el('overlap').textContent=`${result.overlap}/${result.overlap_denominator} overlap with popularity`;
   el('timing').textContent=`Within ${result.radius/1000} km`;
@@ -135,7 +133,7 @@ function renderContrast(off){
 function renderHero(){
   el('hero').hidden=false;el('headline').textContent=COPY.headline;el('hero-title').textContent=COPY.tableTitle;
   el('swap-result').innerHTML=swapComparison(result.picks[0]);
-  el('hero-summary').textContent=result.method==='maximin-rank'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):`Ranked by rank sum across ${result.pool_size} candidates.`;
+  el('hero-summary').textContent=result.method!=='rank-sum'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):`Ranked by rank sum across ${result.pool_size} candidates.`;
   const headers=result.people.map((p,i)=>`<th scope="col">${esc(p.name)}</th>`).join('');
   el('concession-table').innerHTML=`<table><thead><tr><th scope="col">Place / selection</th>${headers}</tr></thead><tbody>${(result.concession_table||[]).filter(row=>row.ranks.some(r=>r!==null)).map(row=>`<tr class="${row.id===result.picks[0].id?'fair-row':''}"><th scope="row"><small>${esc(row.label)}</small><strong>${esc(row.name)}</strong></th>${row.ranks.map(r=>`<td class="${r!==null&&r===Math.max(...row.ranks.filter(v=>v!==null))?'worst':''}">${r===null?'—':'#'+r}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
