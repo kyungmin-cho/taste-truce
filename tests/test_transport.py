@@ -47,13 +47,26 @@ class TransportTests(unittest.TestCase):
     def test_rate_limit_is_shared_by_transport_instances(self):
         from concurrent.futures import ThreadPoolExecutor
         import sqlite3
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory}):
+        import threading
+        import time
+        from types import SimpleNamespace
+        # A shared clock that moves only when a worker sleeps. Each worker's last reading is
+        # the start time reserve() recorded, so thread scheduling cannot change the result.
+        lock=threading.Lock();clock={'now':1000.0};seen=threading.local()
+        def now():
+            with lock:seen.at=clock['now'];return seen.at
+        def sleep(delay):
+            with lock:clock['now']=max(clock['now'],seen.at+delay)
+        fake=SimpleNamespace(time=now,sleep=sleep,strftime=time.strftime,gmtime=time.gmtime)
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ,{'QLOO_CACHE_DIR':directory,'QLOO_STATE_DIR':directory}), patch('qloo.time',fake):
             workers=[Qloo() for _ in range(6)]
+            def start(i):
+                workers[i].reserve(str(i));return seen.at
             with ThreadPoolExecutor(max_workers=6) as pool:
-                times=list(pool.map(lambda i:(workers[i].reserve(str(i)),__import__('time').time())[1],range(6)))
+                times=list(pool.map(start,range(6)))
             ordered=sorted(times)
-            self.assertTrue(all(b-a>=.29 for a,b in zip(ordered,ordered[1:])))
-            self.assertTrue(all(ordered[i+4]-ordered[i]>=1.24 for i in range(len(ordered)-4)))
+            self.assertTrue(all(b-a>=.30-1e-9 for a,b in zip(ordered,ordered[1:])))
+            self.assertTrue(all(ordered[i+4]-ordered[i]>=1.25-1e-9 for i in range(len(ordered)-4)))
             with sqlite3.connect(workers[0].database) as db:
                 self.assertEqual(db.execute('SELECT used FROM months').fetchone()[0],1006)
                 # Burst spacing and the shared four-start window leave upstream headroom.
