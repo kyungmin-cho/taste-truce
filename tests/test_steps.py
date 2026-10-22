@@ -19,7 +19,6 @@ HIDDEN=['take ','bound candidate union','maximin-rank','rank-sum ·','Direct pla
 
 def render(rows):
     """Run static/steps.js in node and return its view and markup for each row."""
-    if NODE is None:raise AssertionError('node is required to test static/steps.js')
     script='const S=require(process.argv[1]);const rows=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write(JSON.stringify(rows.map(r=>({view:S.view(r),html:S.html(r)}))))'
     out=subprocess.run([NODE,'-e',script,str(ROOT/'static'/'steps.js')],input=json.dumps(rows),capture_output=True,text=True,check=True)
     return json.loads(out.stdout)
@@ -33,6 +32,7 @@ def agent_steps(qloo,body,text=''):
 
 def row(tool,entities,count,**extra):return {'tool':tool,'entities':entities,'count':count,'latency_ms':0,**extra}
 
+@unittest.skipUnless(NODE,'node')
 class StepLabelTests(unittest.TestCase):
     def test_server_labels_map_to_plain_names(self):
         rows=[row('Direct plan · no condition',['plan · Plan this scene'],1),
