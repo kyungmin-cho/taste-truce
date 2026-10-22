@@ -29,7 +29,16 @@ class SceneTests(unittest.TestCase):
         a={'id':'a','name':'A'};b={'id':'b','name':'B'};c={'id':'c','name':'C','observed':[True]*3}
         people=[{'name':n} for n in ['One','Two','Three']]
         rows=concession_table(people,[[a,c,b],[b,c,a],[b,c,a]],[a],c)
-        self.assertEqual([r['ranks'] for r in rows],[[1,3,3],[1,3,3],[3,1,1],[3,1,1],[3,1,1],[2,2,2]])
-        self.assertEqual(rows[-2]['label'],'Majority #1 (2/3)')
+        self.assertEqual([r['ranks'] for r in rows],[[1,3,3],[3,1,1],[2,2,2]])
+        self.assertEqual([r['label'] for r in rows],['Popularity #1 · One #1','Two #1 · Three #1 · Majority #1 (2/3)','Fair pick'])
+        a['observed']=[True]*3
+        rows=concession_table(people,[[a,c,b],[c,a,b],[b,a,c]],[a],a)
+        self.assertEqual([r['label'] for r in rows],['Fair pick · Popularity #1 · One #1','Two #1','Three #1'])
         rows=concession_table(people,[[a],[b],[b]],[c],c)
         self.assertEqual(rows[0]['ranks'],[None]*3);self.assertIsNone(rows[0]['worst_rank'])
+    def test_saved_snapshot_table_is_read_with_one_row_per_place(self):
+        with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'QLOO_CACHE_DIR':root,'QLOO_STATE_DIR':root}):
+            q=Qloo();row=lambda label,i:{'label':label,'id':i,'name':i,'ranks':[1],'worst_rank':1}
+            save_scene(q,'williamsburg',{'picks':[{'id':'a'}],'concession_table':[row('Popularity #1','a'),row('One #1','b'),row('Fair pick','a')]})
+            table=read_scene(q,'williamsburg')['concession_table']
+            self.assertEqual([(r['id'],r['label']) for r in table],[('a','Fair pick · Popularity #1'),('b','One #1')])

@@ -4,6 +4,7 @@ import json
 import os
 import time
 from agent import DEFAULT_PEOPLE
+from logic import merge_rows
 
 PRESETS={
     'seongsu':{'label':'Seongsu','area':'Seongsu','people':DEFAULT_PEOPLE},
@@ -37,6 +38,8 @@ def read_scene(q,name):
         data=item['data']
         if data['version']!=VERSION or (ttl and time.time()-item['saved']>=ttl):return None
         result=copy.deepcopy(data['result'])
+        # Snapshots saved before rows were merged still show one row per place.
+        if result.get('concession_table'):result['concession_table']=merge_rows(result['concession_table'])
         result['saved_utc']=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime(item['saved']))
         return result
     except (OSError,KeyError,ValueError,TypeError):return None

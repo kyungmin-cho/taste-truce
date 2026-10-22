@@ -115,4 +115,15 @@ def concession_table(people, lists, baseline, pick):
         if count>len(people)/2 and count>=2:
             add('Majority #1 ('+str(count)+'/'+str(len(people))+')',next(e for es in lists for e in es if e['id']==entity_id))
     add('Fair pick' if all(pick['observed']) else 'Group pick · rank-sum fallback',pick)
-    return rows
+    return merge_rows(rows)
+
+
+def merge_rows(rows):
+    """One row per place: a place that is several things at once lists every label, fair pick first."""
+    merged={}
+    for row in rows:
+        same=merged.get(row['id'])
+        if not same:merged[row['id']]=dict(row)
+        elif row['label'].startswith(('Fair pick','Group pick')):same['label']=row['label']+' · '+same['label']
+        else:same['label']+=' · '+row['label']
+    return list(merged.values())
