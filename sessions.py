@@ -16,11 +16,21 @@ class Sessions:
     def ip(self,handler):
         peer=handler.client_address[0]
         header=os.getenv('TRUSTED_PROXY_HEADER','')
-        trusted=(os.getenv('TRUSTED_PROXY_IPS') or '').split(',')
-        if header and peer in [x.strip() for x in trusted]:
+        if header and self.trusted_peer(peer,os.getenv('TRUSTED_PROXY_IPS') or ''):
             try:return str(ipaddress.ip_address(handler.headers.get(header,'').split(',')[0].strip()))
             except ValueError:pass
         return peer
+
+    @staticmethod
+    def trusted_peer(peer,spec):
+        # Exact IPs or CIDR ranges. '*' trusts every peer: only for hosts where the
+        # application port is reachable solely through the platform proxy.
+        for item in (x.strip() for x in spec.split(',')):
+            if item=='*':return True
+            try:
+                if item and ipaddress.ip_address(peer) in ipaddress.ip_network(item,strict=False):return True
+            except ValueError:pass
+        return False
 
     @staticmethod
     def token(header):

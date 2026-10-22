@@ -50,6 +50,12 @@ class SessionTests(unittest.TestCase):
         headers={'X-Forwarded-For':'192.0.2.4, 192.0.2.5'}
         self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('127.0.0.1',0),headers=headers)),'127.0.0.1')
         self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('127.0.0.2',0),headers=headers)),'192.0.2.4')
+        with patch.dict(os.environ,{'TRUSTED_PROXY_IPS':'10.0.0.0/8'}):
+            self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('10.1.2.3',0),headers=headers)),'192.0.2.4')
+            self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('127.0.0.1',0),headers=headers)),'127.0.0.1')
+        with patch.dict(os.environ,{'TRUSTED_PROXY_IPS':'*'}):
+            self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('203.0.113.9',0),headers=headers)),'192.0.2.4')
+            self.assertEqual(self.sessions.ip(SimpleNamespace(client_address=('203.0.113.9',0),headers={'X-Forwarded-For':'not-an-ip'})),'203.0.113.9')
     def test_session_binding_expiry_and_active_slot_protection(self):
         one=self.sessions.issue('','ip');self.assertIsNone(self.sessions.get(one,'other'))
         mutex,error=self.sessions.acquire(one,'ip');self.assertIsNone(error)

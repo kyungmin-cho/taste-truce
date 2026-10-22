@@ -84,7 +84,7 @@ The image runs as an unprivileged user. The `/data` volume holds the private res
 | `IP_DAILY_CALL_CAP` | `100` | Uncached calls per IP per UTC day. |
 | `MAX_SESSIONS` | `1000` | Sessions kept in memory. |
 | `SESSION_TTL_SECONDS` | `86400` | Session lifetime. |
-| `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_IPS` | unset | Set both to accept a client-IP header from known proxy peers. |
+| `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_IPS` | unset | Set both to accept a client-IP header from known proxy peers. `TRUSTED_PROXY_IPS` takes exact IPs, CIDR ranges, or `*` when only the platform proxy can reach the app. |
 | `COOKIE_SECURE` | `0` | Set to `1` behind HTTPS. |
 | `HOST`, `PORT` | `127.0.0.1`, `3000` | Bind address. |
 | `ENV_FILE` | `./.env` | Env file loaded at startup. |
