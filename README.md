@@ -71,6 +71,7 @@ On start the container runs `prewarm.py`, then the server. Snapshots already on 
 | `QLOO_API_KEY` | required | Qloo key, read only by the server. |
 | `QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo API root. |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | unset | Optional OpenAI-compatible `/chat/completions` endpoint for the planner. Set all three, or the local parser runs. |
+| `LLM_TIMEOUT_SECONDS` | `8` | Per-request LLM timeout. On a timeout or error the local parser runs and the server logs the status code. |
 | `DEFAULT_SCENE` | `williamsburg` | First scene: `seongsu`, `williamsburg` or `majority`. |
 | `DEFAULT_SCENE_TTL_SECONDS` | `0` (no expiry) | A positive value must be at least 2592000 (30 days). |
 | `QLOO_CACHE_TTL_SECONDS` | `0` (no expiry) | Response cache expiry. |

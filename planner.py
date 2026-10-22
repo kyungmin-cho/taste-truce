@@ -3,6 +3,7 @@ import copy
 import json
 import os
 import re
+import sys
 import urllib.request
 
 TOOL_PARAMS = {
@@ -74,6 +75,13 @@ def parse_local(text, marker):
     try:return marker,validate(local_tools(text))
     except ValueError as err:raise PlannerError(str(err),marker) from None
 
+def llm_timeout():
+    return float(os.getenv('LLM_TIMEOUT_SECONDS') or '8')
+
+def llm_failed(step, err):
+    # Status code or error type only; requests, responses and keys stay out of the log.
+    print(f'{step}: LLM unavailable ({getattr(err,"code",None) or type(err).__name__})',file=sys.stderr,flush=True)
+
 def choose_tools(text, scene):
     if not text.strip():return 'Direct plan · no condition', [{'name':'plan','arguments':{}}]
     configured=all(os.getenv(k) for k in ['LLM_BASE_URL','LLM_MODEL','LLM_API_KEY'])
@@ -84,12 +92,13 @@ def choose_tools(text, scene):
                 {'role':'user','content':json.dumps({'request':text or 'Plan this scene','scene':scene})}],
                 'tools':TOOLS,'tool_choice':'required','max_tokens':600}
             req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY']})
-            with urllib.request.urlopen(req,timeout=30) as response:data=json.load(response)
+            with urllib.request.urlopen(req,timeout=llm_timeout()) as response:data=json.load(response)
             calls=data['choices'][0]['message']['tool_calls']
             actions=validate([{'name':c['function']['name'],'arguments':json.loads(c['function']['arguments'])} for c in calls])
             if text and all(a['name']=='plan' for a in actions):raise ValueError('Request needs a condition tool')
             return 'LLM planner',actions
-        except Exception:
+        except Exception as err:
+            llm_failed('planner',err)
             return parse_local(text,'Local intent parser · LLM unavailable')
     return parse_local(text,'Local intent parser')
 
@@ -131,12 +140,14 @@ def observe_replan(text, scene, actions, observation):
             messages += [{'role':'tool','tool_call_id':c['id'],'content':json.dumps(observation)} for c in calls]
             payload={'model':os.environ['LLM_MODEL'],'messages':messages,'tools':[t for t in TOOLS if t['function']['name'] in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion')],'tool_choice':'required','max_tokens':400}
             req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY']})
-            with urllib.request.urlopen(req,timeout=30) as response:data=json.load(response)
+            with urllib.request.urlopen(req,timeout=llm_timeout()) as response:data=json.load(response)
             c=data['choices'][0]['message']['tool_calls'][0]['function']
             a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
             if a['name']=='widen_radius' and a['arguments']['radius']<=observation['radius']:
                 return 'Local next steps · repeated radius rejected',local
             if a['name'] not in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion'):raise ValueError('Unsupported follow-up')
             return 'LLM planner',[{'label':a['name'].replace('_',' ')+' · '+str(a['arguments']),**a}]
-        except Exception:return 'Local next steps · LLM unavailable',local
+        except Exception as err:
+            llm_failed('observe',err)
+            return 'Local next steps · LLM unavailable',local
     return 'Local next steps',local

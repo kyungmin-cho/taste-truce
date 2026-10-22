@@ -19,9 +19,19 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(planner,'LLM planner');self.assertEqual(actions[0]['name'],'exclude_place')
             request=network.call_args[0][0];body=json.loads(request.data)
             self.assertTrue(body['tools']);self.assertEqual(body['tool_choice'],'required')
+            self.assertEqual(network.call_args[1]['timeout'],8.0)
         with patch.dict(os.environ,config),patch('urllib.request.urlopen',side_effect=OSError()):
             planner,actions=choose_tools('no bars please',{})
             self.assertIn('LLM unavailable',planner);self.assertEqual(actions[0]['name'],'exclude_categories')
+    def test_llm_timeout_is_configurable_and_failures_log_only_the_status(self):
+        import contextlib,urllib.error
+        config={'LLM_BASE_URL':'http://localhost:9999/v1','LLM_API_KEY':'synthetic-test-token','LLM_MODEL':'test','LLM_TIMEOUT_SECONDS':'3'}
+        denied=urllib.error.HTTPError('http://localhost:9999/v1/chat/completions',403,'Forbidden',{},io.BytesIO(b'{"error":"synthetic-test-token"}'))
+        log=io.StringIO()
+        with patch.dict(os.environ,config),patch('urllib.request.urlopen',side_effect=denied) as network,contextlib.redirect_stderr(log):
+            planner,_=choose_tools('no bars please',{})
+        self.assertIn('LLM unavailable',planner);self.assertEqual(network.call_args[1]['timeout'],3.0)
+        self.assertIn('planner: LLM unavailable (403)',log.getvalue());self.assertNotIn('synthetic-test-token',log.getvalue())
     def test_malformed_or_unbounded_model_tools_use_local_fallback(self):
         response={'choices':[{'message':{'tool_calls':[{'function':{'name':'change_area','arguments':'{"area":"Atlantis"}'}}]}}]}
         with patch.dict(os.environ,{'LLM_BASE_URL':'http://localhost','LLM_API_KEY':'synthetic-test-token','LLM_MODEL':'test'}),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(response).encode())):
