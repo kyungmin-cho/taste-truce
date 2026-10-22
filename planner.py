@@ -78,6 +78,11 @@ def parse_local(text, marker):
 def llm_timeout():
     return float(os.getenv('LLM_TIMEOUT_SECONDS') or '8')
 
+def post_chat(payload):
+    # An explicit agent: Cloudflare-fronted providers such as Groq answer the default Python-urllib agent with 403 (error 1010).
+    req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY'],'User-Agent':'TasteTruce/1.0'})
+    with urllib.request.urlopen(req,timeout=llm_timeout()) as response:return json.load(response)
+
 def llm_failed(step, err):
     # Status code or error type only; requests, responses and keys stay out of the log.
     print(f'{step}: LLM unavailable ({getattr(err,"code",None) or type(err).__name__})',file=sys.stderr,flush=True)
@@ -91,8 +96,7 @@ def choose_tools(text, scene):
                 {'role':'system','content':'Choose only the tools needed for the user request. Use plan for an initial scene. Do not rank places, invent tastes, or add unrelated tools. Multiple conditions may require multiple tools. Only supported neighborhoods and occasions are allowed. A request to add a vegetarian friend requires add_friend with vegetarian true, even before their taste is known.'},
                 {'role':'user','content':json.dumps({'request':text or 'Plan this scene','scene':scene})}],
                 'tools':TOOLS,'tool_choice':'required','max_tokens':600}
-            req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY']})
-            with urllib.request.urlopen(req,timeout=llm_timeout()) as response:data=json.load(response)
+            data=post_chat(payload)
             calls=data['choices'][0]['message']['tool_calls']
             actions=validate([{'name':c['function']['name'],'arguments':json.loads(c['function']['arguments'])} for c in calls])
             if text and all(a['name']=='plan' for a in actions):raise ValueError('Request needs a condition tool')
@@ -139,8 +143,7 @@ def observe_replan(text, scene, actions, observation):
                       {'role':'assistant','content':None,'tool_calls':calls}]
             messages += [{'role':'tool','tool_call_id':c['id'],'content':json.dumps(observation)} for c in calls]
             payload={'model':os.environ['LLM_MODEL'],'messages':messages,'tools':[t for t in TOOLS if t['function']['name'] in ('exclude_tags','widen_radius','exclude_place','prefer_budget','change_occasion')],'tool_choice':'required','max_tokens':400}
-            req=urllib.request.Request(os.environ['LLM_BASE_URL'].rstrip('/')+'/chat/completions',data=json.dumps(payload).encode(),headers={'Content-Type':'application/json','Authorization':'Bearer '+os.environ['LLM_API_KEY']})
-            with urllib.request.urlopen(req,timeout=llm_timeout()) as response:data=json.load(response)
+            data=post_chat(payload)
             c=data['choices'][0]['message']['tool_calls'][0]['function']
             a=validate([{'name':c['name'],'arguments':json.loads(c['arguments'])}])[0]
             if a['name']=='widen_radius' and a['arguments']['radius']<=observation['radius']:

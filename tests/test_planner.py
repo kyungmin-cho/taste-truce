@@ -32,6 +32,16 @@ class PlannerTests(unittest.TestCase):
             planner,_=choose_tools('no bars please',{})
         self.assertIn('LLM unavailable',planner);self.assertEqual(network.call_args[1]['timeout'],3.0)
         self.assertIn('planner: LLM unavailable (403)',log.getvalue());self.assertNotIn('synthetic-test-token',log.getvalue())
+    def test_planner_and_observe_requests_send_an_explicit_user_agent(self):
+        # Cloudflare-fronted providers reject the default Python-urllib agent with 403 (error 1010).
+        config={'LLM_BASE_URL':'http://localhost:9999/v1','LLM_API_KEY':'synthetic-test-token','LLM_MODEL':'test'}
+        response={'choices':[{'message':{'tool_calls':[{'function':{'name':'exclude_place','arguments':'{"target":"current"}'}}]}}]}
+        for call in [lambda:choose_tools('not that place',{}),lambda:observe_replan('no bars',{},[],{'remaining_count':30,'radius':2000,'nothing_matched':False})]:
+            with patch.dict(os.environ,config),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(response).encode())) as network:
+                source,_=call()
+                self.assertEqual(source,'LLM planner')
+                headers={k.lower():v for k,v in network.call_args[0][0].header_items()}
+                self.assertTrue(headers.get('user-agent'));self.assertFalse(headers['user-agent'].startswith('Python-urllib'))
     def test_malformed_or_unbounded_model_tools_use_local_fallback(self):
         response={'choices':[{'message':{'tool_calls':[{'function':{'name':'change_area','arguments':'{"area":"Atlantis"}'}}]}}]}
         with patch.dict(os.environ,{'LLM_BASE_URL':'http://localhost','LLM_API_KEY':'synthetic-test-token','LLM_MODEL':'test'}),patch('urllib.request.urlopen',return_value=io.BytesIO(json.dumps(response).encode())):
