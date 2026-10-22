@@ -46,5 +46,7 @@ def read_scene(q,name):
 
 def health(q):
     name=default_scene();saved=read_scene(q,name)
-    return {'status':'ok','default_scene':name,'default_scene_ready':saved is not None,
-            'needs_new_calls':saved is None,'saved_utc':saved.get('saved_utc') if saved else None}
+    # Not ready means the first screen would be empty until prewarm.py succeeds.
+    ready=saved is not None
+    return {'status':'ok' if ready else 'not_ready','ready':ready,'default_scene':name,'default_scene_ready':ready,
+            'needs_new_calls':not ready,'saved_utc':saved.get('saved_utc') if saved else None}

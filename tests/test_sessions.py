@@ -64,6 +64,20 @@ class SessionTests(unittest.TestCase):
         mutex.release()
         self.sessions.rows[one]['at']=0
         self.assertIsNone(self.sessions.get(one,'ip'))
+    def test_health_is_not_ok_until_the_default_scene_is_saved(self):
+        from scenes import save_scene
+        app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
+        thread=threading.Thread(target=app.serve_forever,daemon=True);thread.start()
+        def get(path):
+            c=http.client.HTTPConnection(*app.server_address);c.request('GET',path);r=c.getresponse();data=json.loads(r.read());c.close();return r.status,data
+        try:
+            status,data=get('/health');self.assertEqual(status,503)
+            self.assertEqual((data['status'],data['ready'],data['needs_new_calls']),('not_ready',False,True))
+            self.assertEqual(get('/scene/default')[0],503)
+            save_scene(self.q,'williamsburg',{'status':'done','picks':[]})
+            status,data=get('/health');self.assertEqual(status,200)
+            self.assertEqual((data['status'],data['ready']),('ok',True));self.assertTrue(data['saved_utc'])
+        finally:app.shutdown();app.server_close();thread.join()
     def test_http_limit_keeps_page_scene_and_health_readable(self):
         from scenes import save_scene
         from unittest.mock import Mock

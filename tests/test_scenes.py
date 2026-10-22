@@ -12,9 +12,11 @@ class SceneTests(unittest.TestCase):
     def test_default_env_and_snapshot_ttl(self):
         with tempfile.TemporaryDirectory() as root,patch.dict(os.environ,{'QLOO_CACHE_DIR':root,'QLOO_STATE_DIR':root,'DEFAULT_SCENE':'majority','DEFAULT_SCENE_TTL_SECONDS':'0'}):
             q=Qloo();self.assertEqual(default_scene(),'majority');self.assertTrue(health(q)['needs_new_calls'])
+            self.assertEqual((health(q)['status'],health(q)['ready']),('not_ready',False))
             save_scene(q,'majority',{'picks':[]})
             file=q.cache/(q.signature('/scene/majority',{})+'.json');item=json.loads(file.read_text());item['saved']=time.time()-40*86400;file.write_text(json.dumps(item))
             self.assertIsNotNone(read_scene(q,'majority'));self.assertFalse(health(q)['needs_new_calls'])
+            self.assertEqual((health(q)['status'],health(q)['ready']),('ok',True))
             with patch.dict(os.environ,{'DEFAULT_SCENE_TTL_SECONDS':str(30*86400)}):self.assertIsNone(read_scene(q,'majority'))
             with patch.dict(os.environ,{'DEFAULT_SCENE_TTL_SECONDS':'86400'}):self.assertIsNone(read_scene(q,'majority'))
     def test_response_cache_default_has_no_ttl_and_expiry_is_configurable(self):
