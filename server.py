@@ -86,10 +86,12 @@ class Handler(BaseHTTPRequestHandler):
                 except (BrokenPipeError,ConnectionResetError):disconnected.set()
         try:
             result=self.server.agent.run(token,body,emit)
-            if result['status']=='done' and not any(result['veto'].values()):
+            # Visitors may fill a missing snapshot, never replace one: choices, text and
+            # suggested actions can change the result while the scene inputs look identical.
+            if result['status']=='done' and not any(result['veto'].values()) and not body.get('choices') and not str(body.get('veto_text','')).strip() and not body.get('suggested_action'):
                 for name in PRESETS:
                     expected=scene_body(name)
-                    if all(result.get(k)==v for k,v in expected.items()):save_scene(self.server.qloo,name,result)
+                    if all(result.get(k)==v for k,v in expected.items()) and read_scene(self.server.qloo,name) is None:save_scene(self.server.qloo,name,result)
             emit({'event':'result','result':result})
         except BudgetError as err:
             result=read_scene(self.server.qloo,default_scene())

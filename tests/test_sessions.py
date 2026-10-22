@@ -83,6 +83,27 @@ class SessionTests(unittest.TestCase):
             self.assertIn('Showing the saved default scene',response[2].decode())
         finally:app.shutdown();app.server_close()
 
+    def test_visitor_runs_fill_but_never_replace_saved_scenes(self):
+        from scenes import read_scene, scene_body
+        from unittest.mock import Mock
+        app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
+        def done(pick,**extra):return {'status':'done','veto':{},**scene_body('williamsburg'),'picks':[{'id':pick}],**extra}
+        app.agent=Mock();thread=threading.Thread(target=app.serve_forever,daemon=True);thread.start()
+        def post(cookie,body):
+            c=http.client.HTTPConnection(*app.server_address);c.request('POST','/api/plan',body=json.dumps(body),headers={'Cookie':cookie});r=c.getresponse();r.read();c.close();return r.status
+        try:
+            c=http.client.HTTPConnection(*app.server_address);c.request('GET','/');cookie=c.getresponse().getheader('Set-Cookie').split(';')[0];c.close()
+            app.agent.run.return_value=done('chosen')
+            self.assertEqual(post(cookie,{'choices':{'0:0':'other'}}),200)
+            self.assertIsNone(read_scene(self.q,'williamsburg'))
+            app.agent.run.return_value=done('first')
+            self.assertEqual(post(cookie,{}),200)
+            self.assertEqual(read_scene(self.q,'williamsburg')['picks'][0]['id'],'first')
+            app.agent.run.return_value=done('second')
+            self.assertEqual(post(cookie,{}),200)
+            self.assertEqual(read_scene(self.q,'williamsburg')['picks'][0]['id'],'first')
+        finally:app.shutdown();app.server_close();thread.join()
+
     def test_get_issues_cookie_and_unknown_posts_never_reach_agent(self):
         app=ThreadingHTTPServer(('127.0.0.1',0),Handler);app.qloo=self.q;app.sessions=self.sessions
         class FakeAgent:
