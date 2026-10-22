@@ -15,8 +15,8 @@ SCREEN_BANNED=['saved_utc','saved-time','Saved ·','Saved calculation','Saved sc
   'friendPin','top 3</span>',
   'baseline places','Popularity baseline','Popularity order','tags recorded','Rank unknown','Rank-sum fallback','penalized']
 SCREEN_FILES=['static/copy.js','static/steps.js','static/app.js','static/index.html']
-# Caveats and limiter timings kept out of the docs.
-DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision','unavailable','does not configure','recorded run','latency','from cache']
+# Caveats, limiter timings and API argument names kept out of the docs.
+DOC_BANNED=['synthetic data only','1.25-second','0.30 seconds','does not provision','unavailable','does not configure','recorded run','latency','from cache','take ']
 DOC_FILES=['README.md','DEPLOY.md']
 
 class CopyTests(unittest.TestCase):
