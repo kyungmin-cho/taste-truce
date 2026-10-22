@@ -149,3 +149,18 @@ class NeighborhoodRadiusTests(unittest.TestCase):
         result=Agent(q).run('s',self.body('Williamsburg NYC',suggested_action={'name':'exclude_tags','arguments':{'tags':['Loud','Busy','Lively']}},veto_text='Somewhere quieter'),lambda _:None)
         self.assertLessEqual(max(self.radii(q)),3500)
         self.assertNotIn('widen_radius',[s['name'] for s in result['suggestions']])
+
+    def test_williamsburg_keeps_brooklyn_addresses_only(self):
+        class Boroughs(FakeQloo):
+            addresses={'0':'1 Bedford Ave, Brooklyn, NY 11211','1':'2 Delancey St, New York, NY 10002','2':'3 Kent Ave 11249','3':'4 Avenue A, New York, NY 10009','4':'5 Grand St, Brooklyn, NY 11211','5':'','6':'성동구 성수이로 1'}
+            def request(self,session,path,params):
+                data,hit=super().request(session,path,params)
+                if path!='/search':
+                    for e in data['results']['entities']:e['properties']['address']=self.addresses.get(e['entity_id'],'')
+                return data,hit
+        q=Boroughs();result=Agent(q).run('s',{'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'}]}],'area':'Williamsburg NYC'},lambda _:None)
+        self.assertEqual({p['id'] for p in result['picks']},{'0','2','4','5'})
+        self.assertTrue(all(e['id'] in {'0','2','4','5'} for e in result['baseline']))
+        self.assertEqual(result['excluded_count'],0)
+        result=Agent(Boroughs()).run('s',{'people':[{'name':'A','seeds':[{'query':'Film','type':'movie'}]}],'area':'Seongsu'},lambda _:None)
+        self.assertEqual(len(result['picks']),6)

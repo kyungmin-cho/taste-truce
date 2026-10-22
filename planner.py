@@ -6,7 +6,7 @@ import re
 import sys
 import urllib.request
 
-# At 5 km a Williamsburg search reaches Midtown Manhattan; stop at 3.5 km there.
+# At 5 km a Williamsburg search reaches Midtown Manhattan; stop at 3.5 km there and keep Brooklyn addresses (agent.in_area).
 MAX_RADIUS = {'Seongsu':5000,'Williamsburg NYC':3500}
 
 def max_radius(area):

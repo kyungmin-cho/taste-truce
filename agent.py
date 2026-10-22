@@ -1,11 +1,19 @@
 """A bounded tool loop: resolve, clarify, retrieve, widen, rescore, decide."""
 from concurrent.futures import ThreadPoolExecutor
+import re
 import time
 from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table
 from qloo import QlooError, BudgetError
 from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for, max_radius
 
 AREAS = {'Seongsu': (127.0557,37.5445), 'Williamsburg NYC': (-73.9571,40.7081)}
+
+def in_area(e, area):
+    """Williamsburg keeps Brooklyn: a 3.5 km circle also reaches the Lower East Side."""
+    if area!='Williamsburg NYC':return True
+    address=e.get('address') or '';zip_code=re.search(r'\b\d{5}\b',address)
+    return not zip_code or zip_code[0].startswith('112') or 'Brooklyn' in address
+
 DEFAULT_PEOPLE = [
     {'name':'Indie + jazz','seeds':[{'query':'Moonrise Kingdom','type':'movie'}, {'query':'Miles Davis','type':'artist'}]},
     {'name':'K-pop + streetwear','seeds':[{'query':'BTS','type':'artist'}, {'query':'Supreme','type':'brand'}]},
@@ -115,6 +123,7 @@ class Agent:
         tags=OCCASIONS[occasion]
         step('choose category',[t.rsplit(':',1)[-1].replace('_',' ') for t in tags],len(tags),occasion=occasion,operator='intersection')
         lon,lat=AREAS[area]
+        def keep(e,v):return in_area(e,area) and eligible(e,occasion,v)
         pool={};lists=[];baseline=[];excluded_ids=set()
         attempts=[(r,t) for r,t in [(100,10),(2000,30),(3500,40),(5000,50)] if start_radius<=r<=max_radius(area)]
         for attempt,(radius,take) in enumerate(attempts):
@@ -122,15 +131,15 @@ class Agent:
             def retrieve(i):
                 p={**params,'signal.interests.entities':','.join(ids[i])}
                 rows=request('/v2/insights · person','/v2/insights',p,[people[i]['name']]+[s['query'] for s in people[i]['seeds']])
-                excluded_ids.update(e['id'] for e in rows if eligible(e,occasion,{}) and not eligible(e,occasion,veto))
-                return [e for e in rows if eligible(e,occasion,veto)]
+                excluded_ids.update(e['id'] for e in rows if keep(e,{}) and not keep(e,veto))
+                return [e for e in rows if keep(e,veto)]
             with ThreadPoolExecutor(max_workers=4) as executor:
                 fs=[executor.submit(retrieve,i) for i in range(len(people))]
                 base_future=executor.submit(request,'/v2/insights · popularity','/v2/insights',params,[area,occasion,'No taste signal'])
                 lists=[f.result() for f in fs]
                 base_rows=base_future.result()
-                excluded_ids.update(e['id'] for e in base_rows if eligible(e,occasion,{}) and not eligible(e,occasion,veto))
-                baseline=[e for e in base_rows if eligible(e,occasion,veto)]
+                excluded_ids.update(e['id'] for e in base_rows if keep(e,{}) and not keep(e,veto))
+                baseline=[e for e in base_rows if keep(e,veto)]
             pool={e['id']:e for es in lists for e in es}
             step('validate category + exclusions',[area,f'{radius} m',f'take {take}'],len(pool))
             if len(pool)>=5:break
@@ -170,7 +179,7 @@ class Agent:
             step('rank-sum',['Rescoring incomplete; retrieve more candidates'],len(pool))
             larger={**params,'take':50}
             def widen(i):
-                return [e for e in request('/v2/insights · fallback take 50','/v2/insights',{**larger,'signal.interests.entities':','.join(ids[i])},[people[i]['name']]) if eligible(e,occasion,veto)]
+                return [e for e in request('/v2/insights · fallback take 50','/v2/insights',{**larger,'signal.interests.entities':','.join(ids[i])},[people[i]['name']]) if keep(e,veto)]
             with ThreadPoolExecutor(max_workers=3) as executor:lists=list(executor.map(widen,range(len(people))))
             pool={e['id']:e for es in lists for e in es};pool_rows=list(pool.values())
         t=time.perf_counter()
