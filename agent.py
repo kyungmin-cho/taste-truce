@@ -166,7 +166,7 @@ class Agent:
             raise
         except QlooError:
             method='rank-sum'
-            step('fallback · rank-sum',['Rescoring unavailable or incomplete; expand retrieval'],len(pool))
+            step('rank-sum',['Rescoring incomplete; retrieve more candidates'],len(pool))
             larger={**params,'take':50}
             def widen(i):
                 return [e for e in request('/v2/insights · fallback take 50','/v2/insights',{**larger,'signal.interests.entities':','.join(ids[i])},[people[i]['name']]) if eligible(e,occasion,veto)]

@@ -1,4 +1,4 @@
-"""Illustrative preset inputs and private, durable computed scene snapshots."""
+"""Preset inputs and private, durable computed scene snapshots."""
 import copy
 import json
 import os
@@ -12,7 +12,6 @@ PRESETS={
     'majority':{'label':'Williamsburg · majority / minority','area':'Williamsburg NYC','people':DEFAULT_PEOPLE[:2]+[
         {'name':'Pop + athleisure','seeds':[{'query':'Taylor Swift','type':'artist'},{'query':'Lululemon','type':'brand'}]}]},
 }
-SCENES_TRIED=4  # Two original scenes and the two preregistered group variants.
 VERSION=2
 
 def default_scene():

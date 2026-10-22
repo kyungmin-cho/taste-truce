@@ -22,7 +22,7 @@ load_env(Path(os.getenv('ENV_FILE',ROOT/'.env')))
 from agent import Agent, DEFAULT_PEOPLE
 from qloo import Qloo, QlooError, BudgetError
 from sessions import Sessions
-from scenes import PRESETS, SCENES_TRIED, default_scene, scene_body, save_scene, read_scene, health
+from scenes import PRESETS, default_scene, scene_body, save_scene, read_scene, health
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
@@ -41,7 +41,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         route=urlsplit(self.path).path
         if route=='/api/config':
-            return self.json_response(200,{'people':DEFAULT_PEOPLE,'default_scene':default_scene(),'presets':{k:{'label':v['label'],**scene_body(k)} for k,v in PRESETS.items()},'scenes_tried':SCENES_TRIED})
+            return self.json_response(200,{'people':DEFAULT_PEOPLE,'default_scene':default_scene(),'presets':{k:{'label':v['label'],**scene_body(k)} for k,v in PRESETS.items()}})
         if route=='/health':
             state=health(self.server.qloo)
             return self.json_response(200 if state['ready'] else 503,state)

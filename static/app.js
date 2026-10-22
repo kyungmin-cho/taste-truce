@@ -43,7 +43,7 @@ async function plan(vetoText=''){
           if(event.result.area)el('area').value=event.result.area;
           if(event.result.occasion)el('occasion').value=event.result.occasion;
           if(event.result.start_radius)el('radius').value=event.result.start_radius;
-          if(event.result.status==='friend_taste'){el('friend-editor').open=true;el('status').textContent='Friend added. Enter their film, artist or brand above, then find common ground. Vegetarian options must be recorded; confirm dietary needs with the venue.';el(`seed-${people.length-1}-0`).focus();}
+          if(event.result.status==='friend_taste'){el('friend-editor').open=true;el('status').textContent='Friend added. Enter their film, artist or brand above, then recompute.';el(`seed-${people.length-1}-0`).focus();}
           else if(event.result.status==='clarification'){showQuestions(event.result.questions);el('status').textContent='A name needs a little more context.';}
           else{result=event.result;choices=result.choices||{};el('taste-off').checked=false;renderResult();performance.mark('result-rendered');requestAnimationFrame(()=>requestAnimationFrame(()=>performance.mark('meaningful-render')));el('status').textContent=result.notice||`${result.pool_size} eligible places · ${result.planner}`;el('veto-message').textContent=result.notice||(vetoText?`${result.excluded_count} eligible ${result.excluded_count===1?'place':'places'} excluded by recorded conditions.`:'');}
         }
@@ -96,9 +96,9 @@ function renderResult(){
   el('timing').textContent=`${result.saved_utc?'Saved calculation · ':''}${(result.elapsed_ms/1000).toFixed(2)}s · ${result.radius/1000} km`;
   el('legend').innerHTML=off?'<span><i style="background:#819075"></i>Popularity · taste off</span>':result.people.map((p,i)=>`<span><i style="background:${colors[i]}"></i>${esc(p.name)}</span>`).join('')+'<span><i style="background:#20332b"></i>Our shared pick</span>';
   el('baseline-note').hidden=!off;el('concessions').hidden=off;
-  el('concessions').innerHTML=result.concessions.map((c,i)=>`<article class="concession" style="--color:${colors[i]}"><strong>${esc(c.person)}</strong><span class="rank">${c.rank===null?'Rank unknown':(c.rank===1?'Still #1':`#1 → #${c.rank} · ${c.rank_drop} ${c.rank_drop===1?'place':'places'}`)}</span><small class="place-context">Personal #1 · ${esc(result.personal[i][0]?.genre)} · ${esc(result.personal[i][0]?.address)}</small><div>${esc(c.text)}</div><p class="seed-contributions">${c.contributions?.length?'Qloo taste signal contributions to this pick: '+c.contributions.map(x=>`${esc(x.seed)} ${(x.score*100).toFixed(1)}%`).join(' · '):'Seed contributions unavailable for this response.'}</p></article>`).join('');
+  el('concessions').innerHTML=result.concessions.map((c,i)=>`<article class="concession" style="--color:${colors[i]}"><strong>${esc(c.person)}</strong><span class="rank">${c.rank===null?'Rank unknown':(c.rank===1?'Still #1':`#1 → #${c.rank} · ${c.rank_drop} ${c.rank_drop===1?'place':'places'}`)}</span><small class="place-context">Personal #1 · ${esc(result.personal[i][0]?.genre)} · ${esc(result.personal[i][0]?.address)}</small><div>${esc(c.text)}</div><p class="seed-contributions">${c.contributions?.length?'Qloo taste signal contributions to this pick: '+c.contributions.map(x=>`${esc(x.seed)} ${(x.score*100).toFixed(1)}%`).join(' · '):''}</p></article>`).join('');
   const inputs=result.people.map(p=>`<span><b>${esc(p.name)}</b>: ${p.seeds.map(s=>esc(s.query)).join(' + ')}</span>`).join('');
-  el('scene-summary').innerHTML=`<div class="input-summary">${inputs}</div><small>Provider defaults · no popularity cap or bias override.</small>${swapComparison(pick)}`;
+  el('scene-summary').innerHTML=`<div class="input-summary">${inputs}</div>${swapComparison(pick)}`;
   el('suggestions').innerHTML=(result.suggestions||[]).map((x,i)=>`<button class="secondary" data-next="${i}">${esc(x.label)}</button>`).join('');
   el('suggestions').querySelectorAll('button').forEach(b=>b.onclick=()=>{const s=result.suggestions[+b.dataset.next];pendingAction={name:s.name,arguments:s.arguments};plan(s.label);});
   el('list-title').textContent=off?'Popularity baseline':'The common ground shortlist';
@@ -130,7 +130,7 @@ function renderHero(){
   el('hero').hidden=false;el('headline').textContent=COPY.headline;el('hero-title').textContent=COPY.tableTitle;
   el('swap-result').innerHTML=swapComparison(result.picks[0]);
   el('saved-time').textContent=result.saved_utc?'saved '+result.saved_utc:'computed now';
-  el('hero-summary').textContent=result.method==='maximin-rank'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):'Rank-sum fallback · some ranks may be unknown.';
+  el('hero-summary').textContent=result.method==='maximin-rank'?COPY.fairSummary(result.picks[0].worst_rank,result.pool_size):`Ranked by rank sum across ${result.pool_size} candidates.`;
   const headers=result.people.map((p,i)=>`<th scope="col"><span class="friend-number">${i+1}</span><span class="column-name">${esc(p.name)}</span></th>`).join('');
   el('concession-table').innerHTML=`<table><thead><tr><th scope="col">Place / selection</th>${headers}</tr></thead><tbody>${(result.concession_table||[]).map(row=>`<tr class="${row.id===result.picks[0].id?'fair-row':''}"><th scope="row"><small>${esc(row.label)}</small><strong>${esc(row.name)}</strong></th>${row.ranks.map(r=>`<td class="${r!==null&&r===Math.max(...row.ranks.filter(v=>v!==null))?'worst':''}">${r===null?'—':'#'+r}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
 }
@@ -152,7 +152,6 @@ fetch('/api/config').then(r=>r.json()).then(async data=>{
  config=data;el('headline').textContent=COPY.headline;
  el('presets').innerHTML=Object.entries(config.presets).map(([id,p])=>`<button class="secondary" data-preset="${esc(id)}">${esc(p.label)}</button>`).join('');
  el('presets').querySelectorAll('button').forEach(b=>b.onclick=()=>loadPreset(b.dataset.preset));
- el('disclosure').textContent=COPY.disclosure(Object.keys(config.presets).length,config.scenes_tried);
  if(location.hash.startsWith('#scene=')){const scene=decodeScene(location.hash);people=scene.people;el('area').value=scene.area;el('occasion').value=scene.occasion;el('radius').value=scene.start_radius;resetScene();renderPeople();await plan();}
  else await loadPreset(config.default_scene);
 }).catch(err=>{el('status').textContent=err.message||'Could not load the scene. Reload to retry.';});
