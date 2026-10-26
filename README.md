@@ -1,18 +1,19 @@
 # Taste Truce
 
-Taste Truce proves who concedes what when friends with different tastes pick a place.
+Taste Truce shows who concedes what when friends with different tastes pick a place.
 
 Each friend brings a few films, artists, or brands. Qloo turns those tastes into a ranking of the same candidate places for every person. The agent then picks the place where the worst-off friend concedes the least and shows the evidence as a concession table: one row per place, one column per friend, and each cell is that friend's rank for that place.
 
 Live demo: <DEMO_URL>
 
-## The 30-second demo path
+## A short demo path
 
-1. Open the demo. The first screen is a saved scene: Williamsburg, dinner, Friday 7 p.m., three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
-2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick; a place that is several of these gets one row with every label. The worst rank in each row is highlighted. In the saved Williamsburg scene the fair pick is also the most popular place and friend 3's #1, ranking 8·8·1. Choosing either other friend's #1 instead would push someone down to #49 or #40.
-3. Choose the "Williamsburg · majority / minority" preset. Two friends share a #1, Ume, which the third friend ranks #29. The fair pick, Maison Premiere, ranks 6·3·2.
-4. Type a veto such as "somewhere quieter" or "no bars please" and press Replan. The Agent steps panel lists each tool call, then an `observe → replan` step that suggests what to try next.
-5. Open "Edit friends and scene" and replace friend 2 with Hip-hop + sneakers. The table shows whether the fair pick moved, and says "unchanged" when it didn't.
+1. Open the demo. The first screen is the saved "Williamsburg · majority / minority" scene: dinner in Williamsburg for three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
+2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick; a place that is several of these gets one row with every label. The worst rank in each row is highlighted. Two friends share a #1, Ume, so a vote picks it 2 to 1, and the jazz fan ranks it #29. The fair pick, Maison Premiere, ranks 6·3·2.
+3. Type a veto such as "somewhere quieter" or "no bars please" and press Replan. The Agent steps panel lists each tool call, then an `observe → replan` step that suggests what to try next.
+4. Open "Edit friends and scene" and replace friend 2 with Hip-hop + sneakers. The table shows whether the fair pick moved (here Maison Premiere → Five Leaves) and says "unchanged" when it didn't.
+5. Press "+ Add friend", set the new taste to place, type "Joe's Pizza" and press "Recompute ranks". Several places share that name, so the agent asks which one you mean before it ranks anything.
+6. Choose the "Williamsburg" preset. There the fair pick is also the most popular place and friend 3's #1, ranking 8·8·1. Choosing either other friend's #1 instead would push someone down to #49 or #40.
 
 ## How Qloo is used
 
@@ -72,7 +73,7 @@ On start the container runs `prewarm.py`, then the server. Snapshots already on 
 | `QLOO_BASE_URL` | `https://hackathon.api.qloo.com` | Qloo API root. |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | unset | Optional OpenAI-compatible `/chat/completions` endpoint for the planner. Set all three, or the local parser runs. |
 | `LLM_TIMEOUT_SECONDS` | `8` | Per-request LLM timeout. On a timeout or error the local parser runs and the server logs the status code. |
-| `DEFAULT_SCENE` | `williamsburg` | First scene: `seongsu`, `williamsburg` or `majority`. |
+| `DEFAULT_SCENE` | `williamsburg` | First scene: `seongsu`, `williamsburg` or `majority`. `.env.example` sets `majority`, the scene the live demo opens with. |
 | `DEFAULT_SCENE_TTL_SECONDS` | `0` (no expiry) | A positive value must be at least 2592000 (30 days). |
 | `QLOO_CACHE_TTL_SECONDS` | `0` (no expiry) | Response cache expiry. |
 | `QLOO_CACHE_DIR` | `~/.cache/taste-truce/responses` | Private response cache and saved scenes (`/data/cache` in Docker). |
