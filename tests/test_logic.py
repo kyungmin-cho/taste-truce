@@ -1,6 +1,6 @@
 import unittest
 from agent import compact
-from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, concession_table, consensus, eligible
+from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, concession_table, consensus, eligible, venue_evidence
 
 def place(i,genre='Korean barbecue restaurant',tags=None):
     return {'id':i,'name':i,'genre':genre,'tags':tags or [{'id':CATEGORY+'restaurant','name':'Restaurant'},{'id':DINNER,'name':'Dinner'}]}
@@ -54,6 +54,44 @@ class ConsensusTests(unittest.TestCase):
         self.assertTrue(eligible(full_bar,'Dinner',{'categories':['bar']}))
         self.assertTrue(eligible(kind('w','wine_bar'),'Dinner',{'categories':['pub']}))
         self.assertFalse(eligible(kind('p','gastropub'),'Dinner',{'categories':['pub']}))
+    def test_bar_veto_reads_the_name_description_and_night_out_tags(self):
+        def raw(name,description='',extra=(),cats=('restaurant',),genre='Restaurant',**more):
+            tags=[{'id':CATEGORY+c,'name':c} for c in cats]+[{'id':DINNER,'name':'Dinner'}]+[{'id':t,'name':t} for t in extra]
+            return compact({'entity_id':name,'name':name,'tags':tags,'properties':{'primary_genre':{'name':genre},'description':description,**more}})
+        bars={
+            'aperitivo bar in the description':raw('Pasta Counter','Pasta shop and aperitivo bar with a garden.',cats=('restaurant','pasta_shop')),
+            'hookah and club tags':raw('Carnival Room','Latin eatery with DJ sets, cocktails and hookah.',extra=('urn:tag:ambience:qloo:club_like','urn:tag:amenity:qloo:hookah')),
+            'club tag only':raw('Late Room',extra=('urn:tag:ambience:qloo:club_like',)),
+            'supper club in the name':raw('Hilltop Restaurant & Supper Club','Southern food and live music.'),
+            'bar and grill in the name':raw('Harbor Bar & Grill'),
+            'tavern in the name':raw('Rustic Tavern'),
+            'evening cocktail bar':raw('Corner Cafe',service_description='Coffee by day and a cocktail bar in the evening.'),
+            'gastropub':raw('Union Hall','A neighborhood gastropub with burgers.'),
+            'nightclub genre':raw('Velvet',genre='Nightclub restaurant'),
+        }
+        for label,e in bars.items():
+            with self.subTest(out=label):
+                self.assertTrue(venue_evidence(e,'bar'))
+                self.assertFalse(eligible(e,'Dinner',{'categories':['bar']}))
+                self.assertFalse(eligible(e,'Dinner',{'no_bars':True}))
+        kept={
+            'cocktails and a full bar':raw('Trattoria','Italian restaurant with pastas and classic cocktails.',extra=('urn:tag:amenity:qloo:full_bar','urn:tag:amenities:place:bar_onsite','urn:tag:beverage_offering:qloo:cocktails'),amenities_description='It offers a full bar and bar seating.'),
+            'cellar bar and raw bar':raw('Nordic Table','Tasting menu with a cellar bar.',cuisine_description='Small plates and raw bar selections.'),
+            'hotel lobby bar':raw('Hotel Kitchen',amenities_description='Next to a full-service lobby bar.'),
+            'lively bar scene':raw('Osteria',overall_description='Known for its high-energy bar scene.'),
+            'sushi bar genre':raw('Omakase Room',genre='Sushi bar restaurant',cats=('restaurant','sushi_bar')),
+            'barbecue name':raw("Smoky's Bar-B-Q",genre='Barbecue restaurant'),
+            'nightlife tag alone':raw('Late Kitchen',extra=('urn:tag:activity_type:qloo:nightlife','urn:tag:offerings:place:late_night_food')),
+        }
+        for label,e in kept.items():
+            with self.subTest(kept=label):
+                self.assertEqual(venue_evidence(e,'bar'),[])
+                self.assertTrue(eligible(e,'Dinner',{'categories':['bar']}))
+                self.assertTrue(eligible(e,'Dinner',{'no_bars':True}))
+        self.assertTrue(eligible(bars['aperitivo bar in the description'],'Dinner',{'categories':['pub']}))
+        self.assertFalse(eligible(bars['gastropub'],'Dinner',{'categories':['pub']}))
+        self.assertFalse(eligible(bars['supper club in the name'],'Dinner',{'categories':['nightclub']}))
+        self.assertEqual(compact({'entity_id':'x','name':'x'})['venue_terms'],[])
     def test_search_and_insights_tag_identifiers_are_normalized(self):
         for key in ['id','tag_id']:
             e=compact({'entity_id':'example','name':'Example','tags':[{key:'urn:tag:example','name':'Example'}]})

@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import re
 import time
-from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table
+from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table, venue_terms
 from qloo import QlooError, BudgetError
 from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for, max_radius
 
@@ -20,6 +20,8 @@ DEFAULT_PEOPLE = [
     {'name':'Coffee + design','seeds':[{'query':'Blue Bottle Coffee','type':'brand'}, {'query':'Muji','type':'brand'}]},
 ]
 
+DESCRIPTIONS = ('description', 'short_description', 'overall_description', 'cuisine_description', 'ambience_description', 'amenities_description', 'service_description', 'unique_selling_points')
+
 def compact(e):
     prop=e.get('properties') or {}
     return {'id':e['entity_id'], 'name':e['name'], 'types':e.get('types', [e.get('subtype')]),
@@ -27,7 +29,8 @@ def compact(e):
             'genre': (prop.get('primary_genre') or {}).get('name',''),
             'tags':[{'id':t.get('id') or t['tag_id'],'name':t.get('name') or t.get('id') or t['tag_id']} for t in e.get('tags') or [] if t.get('id') or t.get('tag_id')],
             'price_level':prop.get('price_level'), 'explainability':((e.get('query') or {}).get('explainability') or {}).get('signal.interests.entities',[]),
-            'affinity':(e.get('query') or {}).get('affinity'), 'popularity':e.get('popularity'), 'closed':prop.get('is_closed',False)}
+            'affinity':(e.get('query') or {}).get('affinity'), 'popularity':e.get('popularity'), 'closed':prop.get('is_closed',False),
+            'venue_terms':venue_terms(' '.join(prop.get(k) or '' for k in DESCRIPTIONS if isinstance(prop.get(k),str)))}
 
 class Agent:
     def __init__(self, qloo):

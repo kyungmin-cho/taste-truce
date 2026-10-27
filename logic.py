@@ -12,6 +12,30 @@ def tag_ids(e):
 # A bar veto also covers Qloo's bar subtypes (wine_bar, cocktail_bar, irish_pub, brewpub ...), not only the plain tag.
 # Places that only serve drinks (amenity tags such as full_bar) and non-drinking "bars" stay.
 NOT_DRINKING = {'espresso_bar', 'coffee_bar', 'juice_bar', 'sushi_bar', 'salad_bar', 'snack_bar'}
+FOOD_BARS = re.compile(r"\b(?:sushi|raw|juice|salad|snack|espresso|coffee|noodle|poke|omakase|yogurt) bars?\b|\bbar-?b-?q\b", re.I)
+
+# Qloo's category tags miss some drinking places, so a veto also reads the place's name, Qloo's description of it
+# and a few night-out tags. Each list names what the place is, never what it serves: "full bar" or "cocktails" alone keep a restaurant.
+PUB_WORDS = r"(?:gastro)?pubs?|taverns?|saloons?|taprooms?|tap rooms?|beer halls?|beer gardens?|biergartens?|brewpubs?"
+CLUB_WORDS = r"night ?clubs?|supper clubs?|dance halls?"
+VENUE_NAMES = {
+    'bar': re.compile(rf"\b(?:bars?|lounges?|speakeasy|{PUB_WORDS}|{CLUB_WORDS})\b", re.I),
+    'pub': re.compile(rf"\b(?:{PUB_WORDS})\b", re.I),
+    'nightclub': re.compile(rf"\b(?:{CLUB_WORDS})\b", re.I),
+}
+VENUE_TERMS = {
+    'bar': re.compile(rf"\b(?:(?:aperitivo|cocktail|wine|beer|whiske?y|sake|mezcal|tequila|dive|sports|piano|tiki|karaoke|hookah|neighborhood) (?:bar|lounge)s?|bar (?:&|and) grill|speakeasy|hookah|{PUB_WORDS}|{CLUB_WORDS})\b", re.I),
+    'pub': re.compile(rf"\b(?:{PUB_WORDS})\b", re.I),
+    'nightclub': re.compile(rf"\b(?:{CLUB_WORDS})\b", re.I),
+}
+CLUB_TAGS = {'urn:tag:ambience:qloo:club_like', 'urn:tag:ambience:qloo:nightclub_energy', 'urn:tag:setting:qloo:supper_club', 'urn:tag:setting:qloo:dance_hall'}
+VENUE_TAGS = {'bar': CLUB_TAGS | {'urn:tag:amenity:qloo:hookah', 'urn:tag:activity_type:qloo:hookah_smoking', 'urn:tag:activity_type:qloo:smoking_hookah'},
+              'pub': set(), 'nightclub': CLUB_TAGS}
+
+def venue_terms(text):
+    """Drinking-venue phrases in Qloo's description of a place, e.g. 'aperitivo bar' or 'supper club'."""
+    text = FOOD_BARS.sub(' ', text or '')
+    return sorted({m.group(0).lower() for m in VENUE_TERMS['bar'].finditer(text)})
 
 def place_kinds(e):
     kinds = set()
@@ -22,12 +46,23 @@ def place_kinds(e):
     return kinds - NOT_DRINKING
 
 def is_kind(e, category):
-    """bar: bar, any *_bar or bar_* kind, lounges and pubs; pub: any *pub; nightclub: nightclub."""
+    """bar: bar, any *_bar or bar_* kind, lounges, pubs, beer halls and nightclubs; pub: pubs and beer halls; nightclub: nightclub."""
     def match(k):
-        if category == 'bar':return k in ('bar', 'lounge') or k.endswith('_bar') or k.startswith('bar_') or k.endswith('pub')
-        if category == 'pub':return k.endswith('pub')
+        if category == 'bar':return k in ('bar', 'lounge', 'nightclub', 'taproom', 'beer_hall', 'beer_garden') or k.endswith('_bar') or k.startswith('bar_') or k.endswith('pub')
+        if category == 'pub':return k.endswith('pub') or k in ('taproom', 'beer_hall', 'beer_garden')
         return k == category or k.endswith('_'+category)
     return any(match(k) for k in place_kinds(e))
+
+def venue_evidence(e, category):
+    """Why a place counts as a bar, pub or nightclub: Qloo kind, genre, name, description or tag. Empty when it does not."""
+    found = [k for k in sorted(place_kinds(e)) if is_kind({'tags':[{'id':CATEGORY+k}]}, category)]
+    genre = FOOD_BARS.sub(' ', e.get('genre', ''))
+    if VENUE_NAMES[category].search(genre):found.append('genre: '+e['genre'])
+    name = FOOD_BARS.sub(' ', e.get('name', ''))
+    if VENUE_NAMES[category].search(name):found.append('name: '+e['name'])
+    found += ['described as '+t for t in e.get('venue_terms', []) if VENUE_TERMS[category].fullmatch(t)]
+    found += ['tag '+t.rsplit(':', 1)[-1] for t in sorted(tag_ids(e) & VENUE_TAGS[category])]
+    return found
 
 def eligible(e, occasion, veto):
     tags = tag_ids(e)
@@ -40,10 +75,8 @@ def eligible(e, occasion, veto):
         return False
     if occasion == 'Drinks' and (not any(x in genre for x in ('bar', 'pub', 'nightclub', 'lounge', 'brewery')) or 'store' in genre):
         return False
-    if veto.get('no_bars') and (is_kind(e, 'bar') or re.search(r'\b(bar|pub|nightclub|gastropub)\b', genre)):
-        return False
-    categories=veto.get('categories',[])
-    if any(is_kind(e, c) or re.search(r'\b'+re.escape(c)+r'\b',genre) for c in categories):return False
+    categories = set(veto.get('categories', [])) | ({'bar'} if veto.get('no_bars') else set())
+    if any(venue_evidence(e, c) for c in categories):return False
     if {t['name'].casefold() for t in e.get('tags',[])} & {t.casefold() for t in veto.get('tags',[])}:return False
     if veto.get('vegetarian') and not tags & {'urn:tag:offerings:place:vegetarian_options','urn:tag:category:place:vegetarian_restaurant','urn:tag:genre:place:restaurant:vegetarian','urn:tag:amenity:qloo:vegetarian_options','urn:tag:dietary_option:qloo:vegetarian'}:return False
     if veto.get('max_price_level') and (not isinstance(e.get('price_level'),(int,float)) or not 0<e['price_level']<=veto['max_price_level']):return False
