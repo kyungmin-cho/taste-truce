@@ -40,6 +40,20 @@ class ConsensusTests(unittest.TestCase):
         self.assertFalse(eligible(bar,'Dinner',{'no_bars':True}))
         self.assertFalse(eligible(place('c','Beer store'),'Dinner',{}))
         self.assertFalse(eligible(place('d'),'Dinner',{'excluded':['d']}))
+    def test_bar_veto_covers_qloo_bar_subtypes_but_not_food_bars(self):
+        def kind(i,k,genre='New American restaurant'):return place(i,genre,tags=place(i)['tags']+[{'id':CATEGORY+k,'name':k}])
+        for k in ['wine_bar','cocktail_bar','sports_bar','bar_grill','irish_pub','brewpub','lounge']:
+            with self.subTest(kind=k):
+                self.assertFalse(eligible(kind(k,k),'Dinner',{'categories':['bar']}))
+                self.assertFalse(eligible(kind(k,k),'Dinner',{'no_bars':True}))
+        wine_genre=place('g','Restaurant',tags=place('g')['tags']+[{'id':'urn:tag:genre:place:restaurant:wine_bar','name':'Wine bar'}])
+        self.assertFalse(eligible(wine_genre,'Dinner',{'categories':['bar']}))
+        for k in ['sushi_bar','espresso_bar','korean_barbecue_restaurant','barbecue_restaurant']:
+            with self.subTest(kept=k):self.assertTrue(eligible(kind(k,k,'Korean barbecue restaurant'),'Dinner',{'categories':['bar']}))
+        full_bar=place('f',tags=place('f')['tags']+[{'id':'urn:tag:amenity:qloo:full_bar','name':'Full bar'}])
+        self.assertTrue(eligible(full_bar,'Dinner',{'categories':['bar']}))
+        self.assertTrue(eligible(kind('w','wine_bar'),'Dinner',{'categories':['pub']}))
+        self.assertFalse(eligible(kind('p','gastropub'),'Dinner',{'categories':['pub']}))
     def test_search_and_insights_tag_identifiers_are_normalized(self):
         for key in ['id','tag_id']:
             e=compact({'entity_id':'example','name':'Example','tags':[{key:'urn:tag:example','name':'Example'}]})

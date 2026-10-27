@@ -9,6 +9,26 @@ OCCASIONS = {'Dinner': [CATEGORY+'restaurant', DINNER], 'Cafe': [CATEGORY+'cafe'
 def tag_ids(e):
     return {t['id'] for t in e.get('tags', [])}
 
+# A bar veto also covers Qloo's bar subtypes (wine_bar, cocktail_bar, irish_pub, brewpub ...), not only the plain tag.
+# Places that only serve drinks (amenity tags such as full_bar) and non-drinking "bars" stay.
+NOT_DRINKING = {'espresso_bar', 'coffee_bar', 'juice_bar', 'sushi_bar', 'salad_bar', 'snack_bar'}
+
+def place_kinds(e):
+    kinds = set()
+    for t in tag_ids(e):
+        for prefix in (CATEGORY, 'urn:tag:genre:place:restaurant:', 'urn:tag:genre:place:'):
+            if t.startswith(prefix):
+                kinds.add(t[len(prefix):])
+    return kinds - NOT_DRINKING
+
+def is_kind(e, category):
+    """bar: bar, any *_bar or bar_* kind, lounges and pubs; pub: any *pub; nightclub: nightclub."""
+    def match(k):
+        if category == 'bar':return k in ('bar', 'lounge') or k.endswith('_bar') or k.startswith('bar_') or k.endswith('pub')
+        if category == 'pub':return k.endswith('pub')
+        return k == category or k.endswith('_'+category)
+    return any(match(k) for k in place_kinds(e))
+
 def eligible(e, occasion, veto):
     tags = tag_ids(e)
     if not set(OCCASIONS[occasion]).issubset(tags):
@@ -20,10 +40,10 @@ def eligible(e, occasion, veto):
         return False
     if occasion == 'Drinks' and (not any(x in genre for x in ('bar', 'pub', 'nightclub', 'lounge', 'brewery')) or 'store' in genre):
         return False
-    if veto.get('no_bars') and (CATEGORY+'bar' in tags or re.search(r'\b(bar|pub|nightclub|gastropub)\b', genre)):
+    if veto.get('no_bars') and (is_kind(e, 'bar') or re.search(r'\b(bar|pub|nightclub|gastropub)\b', genre)):
         return False
     categories=veto.get('categories',[])
-    if any(CATEGORY+c in tags or re.search(r'\b'+re.escape(c)+r'\b',genre) for c in categories):return False
+    if any(is_kind(e, c) or re.search(r'\b'+re.escape(c)+r'\b',genre) for c in categories):return False
     if {t['name'].casefold() for t in e.get('tags',[])} & {t.casefold() for t in veto.get('tags',[])}:return False
     if veto.get('vegetarian') and not tags & {'urn:tag:offerings:place:vegetarian_options','urn:tag:category:place:vegetarian_restaurant','urn:tag:genre:place:restaurant:vegetarian','urn:tag:amenity:qloo:vegetarian_options','urn:tag:dietary_option:qloo:vegetarian'}:return False
     if veto.get('max_price_level') and (not isinstance(e.get('price_level'),(int,float)) or not 0<e['price_level']<=veto['max_price_level']):return False
