@@ -76,6 +76,11 @@ export function App() {
     }
   }, [t.live])
 
+  // On a phone the toasts sit over the question's title, so a question clears the earlier ones.
+  useEffect(() => {
+    if (mobile && t.pending) toast.dismiss()
+  }, [mobile, t.pending])
+
   // A new result shows the taste ranking again.
   useEffect(() => setPopular(false), [result])
 
