@@ -28,16 +28,7 @@ load_env(Path(os.getenv('ENV_FILE',ROOT/'.env')))
 from agent import Agent, DEFAULT_PEOPLE
 from qloo import Qloo, QlooError, BudgetError
 from sessions import Sessions
-from scenes import PRESETS, default_scene, scene_body, save_scene, read_scene, health
-
-# Provider scores the agent ranks with; neither page shows them, so responses leave them out.
-RAW_FIELDS=('affinity','explainability','popularity')
-
-def public(value):
-    """A copy of a result without the provider's raw scores; saved scenes keep them."""
-    if isinstance(value,dict):return {k:public(v) for k,v in value.items() if not ('id' in value and k in RAW_FIELDS)}
-    if isinstance(value,list):return [public(v) for v in value]
-    return value
+from scenes import PRESETS, default_scene, scene_body, save_scene, read_scene, health, public
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'

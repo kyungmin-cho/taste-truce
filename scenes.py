@@ -16,6 +16,14 @@ PRESETS={
         {'name':'Pop + athleisure','seeds':[{'query':'Taylor Swift','type':'artist'},{'query':'Lululemon','type':'brand'}]}]},
 }
 VERSION=2
+# Provider scores the agent ranks with; neither page shows them, so responses leave them out.
+RAW_FIELDS=('affinity','explainability','popularity')
+
+def public(value):
+    """A copy of a result without the provider's raw scores; saved scenes keep them."""
+    if isinstance(value,dict):return {k:public(v) for k,v in value.items() if not ('id' in value and k in RAW_FIELDS)}
+    if isinstance(value,list):return [public(v) for v in value]
+    return value
 
 def default_scene():
     name=os.getenv('DEFAULT_SCENE') or 'williamsburg'
