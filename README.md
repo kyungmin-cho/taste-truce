@@ -43,11 +43,12 @@ The Agent steps panel streams every step with its tool name and inputs, and the 
 
 ## Run locally
 
-Requires Python 3.9+. There are no Python packages to install and no build step.
+Requires Python 3.9+ (no Python packages) and Node.js 22.12+ for the interface build.
 
 ```sh
 cp .env.example .env
 # Set QLOO_API_KEY in .env. QLOO_BASE_URL defaults to https://hackathon.api.qloo.com.
+(cd web && npm ci && npm run build)   # builds the interface into web/dist
 python3 prewarm.py     # builds the three preset scenes once
 python3 server.py
 ```
@@ -102,7 +103,7 @@ python3 -m unittest discover -s tests
 
 ## Data and license
 
-This repository contains no Qloo data and no keys. Qloo responses are fetched at runtime and cached privately outside Git. The code is MIT-licensed (see [LICENSE](LICENSE)). Leaflet ships with its own license in `static/vendor/leaflet`, and map data is © OpenStreetMap contributors.
+This repository contains no Qloo data and no keys. Qloo responses are fetched at runtime and cached privately outside Git. The code is MIT-licensed (see [LICENSE](LICENSE)). Leaflet ships with its own license (`static/vendor/leaflet`, and the npm package for the new interface), and map data is © OpenStreetMap contributors.
 
 ## Files
 
@@ -112,4 +113,5 @@ This repository contains no Qloo data and no keys. Qloo responses are fetched at
 - `logic.py`: eligibility, maximin consensus, the concession table.
 - `qloo.py`: server-only Qloo transport, rate limit, cache and budgets.
 - `sessions.py`, `scenes.py`, `prewarm.py`: session limits, presets and saved scenes, prewarming.
-- `static/`: the interface; `copy.js` holds the first-screen text and `steps.js` names the Agent steps panel rows.
+- `web/`: the interface (React, Vite, shadcn/ui); `server.py` serves its build at `/`. See [web/README.md](web/README.md).
+- `static/`: the previous interface, served at `/classic` and at `/` when there is no build.

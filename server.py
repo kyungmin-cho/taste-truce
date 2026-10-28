@@ -5,11 +5,17 @@ import json
 import mimetypes
 import os
 from pathlib import Path
+import re
 import threading
 import time
 from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parent
+# Built front end (web/, `npm run build`). Without a build, / serves the previous page in static/.
+WEB=ROOT/'web'/'dist'
+ASSET=re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]*')
+# Explicit types: responses carry nosniff, and module scripts are refused under text/plain.
+ASSET_TYPES={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.woff2':'font/woff2','.woff':'font/woff','.svg':'image/svg+xml','.png':'image/png'}
 
 def load_env(path):
     if not path.exists():return
@@ -27,12 +33,12 @@ from scenes import PRESETS, default_scene, scene_body, save_scene, read_scene, h
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
     def log_message(self, *_):pass
-    def headers_for(self, status, content_type, length=None):
+    def headers_for(self, status, content_type, length=None, cache='no-store'):
         self.send_response(status)
         self.send_header('Content-Type',content_type)
         self.send_header('X-Content-Type-Options','nosniff')
         self.send_header('Referrer-Policy','strict-origin-when-cross-origin')
-        self.send_header('Cache-Control','no-store')
+        self.send_header('Cache-Control',cache)
         self.send_header('Connection','close')
         self.close_connection=True
         if length is not None:self.send_header('Content-Length',str(length))
@@ -49,15 +55,25 @@ class Handler(BaseHTTPRequestHandler):
             name=route.split('/')[-1]
             result=read_scene(self.server.qloo,default_scene() if name=='default' else name)
             return self.json_response(200 if result else 503,{'result':result,'error':None if result else 'The saved scene is still being prepared. Please reload in a minute.'})
-        files={'/':'index.html','/styles.css':'styles.css','/app.js':'app.js','/copy.js':'copy.js','/steps.js':'steps.js'}
+        if route.startswith('/assets/'):
+            name=route[len('/assets/'):]
+            file=WEB/'assets'/name
+            if not ASSET.fullmatch(name) or file.suffix not in ASSET_TYPES or not file.is_file():return self.json_response(404,{'error':'Not found'})
+            data=file.read_bytes()
+            # Vite puts a content hash in every asset name, so a cached copy never goes stale.
+            self.headers_for(200,ASSET_TYPES[file.suffix],len(data),'public, max-age=31536000, immutable')
+            self.end_headers();self.wfile.write(data);return
+        # /classic keeps the previous page reachable; it shares the same API and session.
+        files={'/':'index.html','/classic':'index.html','/styles.css':'styles.css','/app.js':'app.js','/copy.js':'copy.js','/steps.js':'steps.js'}
         vendor=['leaflet.js','leaflet.css','LICENSE','images/layers.png','images/layers-2x.png','images/marker-icon.png','images/marker-icon-2x.png','images/marker-shadow.png']
         files.update({'/vendor/leaflet/'+name:'vendor/leaflet/'+name for name in vendor})
         if route not in files:return self.json_response(404,{'error':'Not found'})
         token=None
-        if route=='/':
+        if route in ('/','/classic'):
             try:token=self.server.sessions.issue(Sessions.token(self.headers.get('Cookie')),self.server.sessions.ip(self))
             except ValueError:pass
-        file=ROOT/'static'/files[route];data=file.read_bytes()
+        file=WEB/'index.html' if route=='/' and (WEB/'index.html').is_file() else ROOT/'static'/files[route]
+        data=file.read_bytes()
         self.headers_for(200,(mimetypes.guess_type(file.name)[0] or 'text/plain')+('' if file.suffix=='.png' else '; charset=utf-8'),len(data))
         if token:self.send_header('Set-Cookie',f'taste_session={token}; HttpOnly; SameSite=Strict; Path=/'+('; Secure' if os.getenv('COOKIE_SECURE')=='1' else ''))
         self.end_headers();self.wfile.write(data)
