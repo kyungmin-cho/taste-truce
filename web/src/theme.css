@@ -41,5 +41,10 @@ body {
 }
 /* Phones: controls and credits sit below the floating scene bar. */
 @media (max-width: 767px) {
-  .leaflet-container .leaflet-top { top: calc(max(0.75rem, env(safe-area-inset-top)) + 5.75rem); }
+  .leaflet-container .leaflet-top { top: calc(max(0.75rem, env(safe-area-inset-top)) + 6.5rem); }
+}
+
+/* iPhone Safari zooms into any field under 16px when it gets focus. */
+@media (pointer: coarse) {
+  input, select, textarea { font-size: 16px !important; }
 }

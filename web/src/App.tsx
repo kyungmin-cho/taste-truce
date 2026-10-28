@@ -27,8 +27,10 @@ const Clarify = lazy(() => import('./app/Clarify'))
 
 const DESKTOP_PAD: [number, number] = [56, 150]
 const PANEL_PAD: [number, number] = [448, 56]
-const MOBILE_TOP: [number, number] = [24, 120]
-const SNAPS = [0.52, 0.94]
+const MOBILE_TOP: [number, number] = [24, 132]
+// Bottom sheet stops: half the screen, and open up to just below the floating scene card.
+const HALF = 0.52
+const fullSnap = () => Math.min(0.94, 1 - 124 / window.innerHeight)
 
 function useMedia(query: string) {
   return useSyncExternalStore(
@@ -94,7 +96,7 @@ export function App() {
     setTab('list')
   }
 
-  const mobilePad = useMemo<[number, number]>(() => [24, Math.round(window.innerHeight * SNAPS[0]) + 24], [])
+  const mobilePad = useMemo<[number, number]>(() => [24, Math.round(window.innerHeight * HALF) + 24], [])
   const editorUsed = useOnce(!!t.editRequest)
   const questionUsed = useOnce(!!t.pending)
 
@@ -144,7 +146,7 @@ export function App() {
 function Brand() {
   return (
     <div className="flex min-w-0 items-baseline gap-2">
-      <a href="/" className="rounded-sm text-[15px] font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring">
+      <a href="/" className="rounded-sm py-1 text-[15px] font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring">
         taste truce
       </a>
       <span className="truncate text-[11px] text-muted-foreground">Powered by Qloo</span>
@@ -219,7 +221,7 @@ function TasteToggle({ popular, setPopular, disabled }: { popular: boolean; setP
   return (
     <Tooltip>
       <TooltipTrigger
-        render={<Toggle variant="outline" size="sm" pressed={popular} onPressedChange={setPopular} disabled={disabled} className="h-7 px-2 text-xs aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground" data-tt="taste-off" />}
+        render={<Toggle variant="outline" size="sm" pressed={popular} onPressedChange={setPopular} disabled={disabled} className="h-7 px-2 text-xs pointer-coarse:h-10 aria-pressed:border-primary/40 aria-pressed:bg-accent aria-pressed:text-accent-foreground" data-tt="taste-off" />}
       >
         Taste off
       </TooltipTrigger>
@@ -313,14 +315,15 @@ function PickView({ r, previous, popular }: { r: Result; previous: Result | null
 function MobileLayout({ t, tab, setTab, activeId, setActiveId, popular, setPopular, onShare }: TabProps & { onShare: (scene: Scene) => void }) {
   const r = t.current
   const [mobileTab, setMobileTab] = useState<Tab>('list')
-  const [snap, setSnap] = useState<number | string | null>(SNAPS[0])
+  const snaps = useMemo(() => [HALF, fullSnap()], [])
+  const [snap, setSnap] = useState<number | string | null>(HALF)
   const tabsRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (tab === 'list') setMobileTab('list')
   }, [tab])
   const openAgent = () => {
     setMobileTab('agent')
-    setSnap(SNAPS[1])
+    setSnap(snaps[1])
     window.setTimeout(() => tabsRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 120)
   }
   return (
@@ -329,7 +332,7 @@ function MobileLayout({ t, tab, setTab, activeId, setActiveId, popular, setPopul
         <SceneSwitch t={t} />
         <AgentStrip t={t} onOpen={openAgent} className="px-2 py-1.5" />
       </div>
-      <Drawer open modal={false} disablePointerDismissal snapPoints={SNAPS} snapPoint={snap} onSnapPointChange={setSnap} showSwipeHandle>
+      <Drawer open modal={false} disablePointerDismissal snapPoints={snaps} snapPoint={snap} onSnapPointChange={setSnap} showSwipeHandle>
         <DrawerContent className="atlas-surface">
           <DrawerTitle className="sr-only">Fair pick and shortlist</DrawerTitle>
           <ScrollArea className="min-h-0 flex-1">

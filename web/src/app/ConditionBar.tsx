@@ -50,12 +50,12 @@ export function ConditionBar({ t, className }: { t: Truce; className?: string })
         />
         <InputGroupAddon align="inline-end">
           {excluded && (
-            <InputGroupButton type="button" size="sm" className="h-8 px-2.5 text-muted-foreground" disabled={t.busy} onClick={() => t.resetExclusions()} aria-label="Reset exclusions">
+            <InputGroupButton type="button" size="sm" className="h-8 px-2.5 text-muted-foreground pointer-coarse:h-9" disabled={t.busy} onClick={() => t.resetExclusions()} aria-label="Reset exclusions">
               <span className="md:hidden">Reset</span>
               <span className="hidden md:inline">Reset exclusions</span>
             </InputGroupButton>
           )}
-          <InputGroupButton type="submit" variant="default" size="sm" className="h-8 px-3" disabled={t.busy || !text.trim()}>
+          <InputGroupButton type="submit" variant="default" size="sm" className="h-8 px-3 pointer-coarse:h-9" disabled={t.busy || !text.trim()}>
             {t.busy ? <Spinner /> : <CornerDownLeftIcon />}
             Replan
           </InputGroupButton>
