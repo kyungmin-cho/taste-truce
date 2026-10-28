@@ -1,5 +1,6 @@
 // Port of server.py's routes. Static files are served by Pages; these are the dynamic paths.
 import { DEFAULT_PEOPLE, run } from './agent.ts'
+import './warm.ts'
 import { BudgetError, QlooError, ValueError, isDict, pyEq, pyStr, truthy, type Obj } from './py.ts'
 import { Qloo, type KV } from './qloo.ts'
 import { PRESETS, defaultScene, health as sceneHealth, publicJson, readScene, saveScene, sceneBody, sceneMeta } from './scenes.ts'

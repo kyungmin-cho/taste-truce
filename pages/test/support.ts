@@ -31,6 +31,19 @@ export class MemoryKV implements KV {
   }
 }
 
+// CPU spent inside node:sqlite, which stands in for D1 (network I/O on Cloudflare); test/bench.ts subtracts it.
+export const sqliteCpu = { ms: 0 }
+// threadCpuUsage (node 23.9+) leaves out the thread pool; older node counts the whole process.
+const threadMs = () => { const u = process.threadCpuUsage?.() ?? process.cpuUsage(); return (u.user + u.system) / 1000 }
+function timed<T>(work: () => T): T {
+  const start = threadMs()
+  try {
+    return work()
+  } finally {
+    sqliteCpu.ms += threadMs() - start
+  }
+}
+
 class Statement implements D1Statement {
   db: DatabaseSync
   sql: string
@@ -45,10 +58,10 @@ class Statement implements D1Statement {
     return s
   }
   async first<T>() {
-    return (this.db.prepare(this.sql).get(...(this.values as any[])) ?? null) as T | null
+    return timed(() => (this.db.prepare(this.sql).get(...(this.values as any[])) ?? null) as T | null)
   }
   async run() {
-    return this.db.prepare(this.sql).run(...(this.values as any[]))
+    return timed(() => this.db.prepare(this.sql).run(...(this.values as any[])))
   }
 }
 
@@ -58,15 +71,17 @@ export class SqliteD1 implements D1 {
     return new Statement(this.db, sql)
   }
   async batch(statements: D1Statement[]) {
-    this.db.exec('BEGIN')
-    try {
-      const out = (statements as Statement[]).map((s) => ({ results: this.db.prepare(s.sql).all(...(s.values as any[])) }))
-      this.db.exec('COMMIT')
-      return out
-    } catch (err) {
-      this.db.exec('ROLLBACK')
-      throw err
-    }
+    return timed(() => {
+      this.db.exec('BEGIN')
+      try {
+        const out = (statements as Statement[]).map((s) => ({ results: this.db.prepare(s.sql).all(...(s.values as any[])) }))
+        this.db.exec('COMMIT')
+        return out
+      } catch (err) {
+        this.db.exec('ROLLBACK')
+        throw err
+      }
+    })
   }
 }
 
