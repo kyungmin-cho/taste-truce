@@ -1,4 +1,5 @@
 import { ArrowRightIcon } from 'lucide-react'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -68,14 +69,15 @@ export function PopularHero({ r }: { r: Result }) {
 type Share = { seed: string; score: number }
 
 // A friend's tastes; with Qloo explainability, how much each one counts toward the fair pick's score.
+// A popover rather than a tooltip, so a tap opens it on phones.
 export function FriendName({ person, shares, className }: { person: Person; shares?: Share[]; className?: string }) {
   const total = shares?.reduce((n, x) => n + x.score, 0) ?? 0
   return (
-    <Tooltip>
-      <TooltipTrigger render={<span tabIndex={0} />} className={cn('truncate', focusRing, className)}>
+    <Popover>
+      <PopoverTrigger openOnHover delay={150} render={<button type="button" />} className={cn('cursor-default truncate text-left', focusRing, className)}>
         {person.name}
-      </TooltipTrigger>
-      <TooltipContent>
+      </PopoverTrigger>
+      <PopoverContent side="top" className="w-auto max-w-64 gap-0 px-3 py-2 text-xs">
         {total > 0 ? (
           <span className="grid grid-cols-[auto_auto] gap-x-3 tabular-nums" data-tt="seed-shares">
             {shares!.map((x) => (
@@ -88,8 +90,8 @@ export function FriendName({ person, shares, className }: { person: Person; shar
         ) : (
           person.seeds.map((s) => s.query).join(' · ')
         )}
-      </TooltipContent>
-    </Tooltip>
+      </PopoverContent>
+    </Popover>
   )
 }
 
