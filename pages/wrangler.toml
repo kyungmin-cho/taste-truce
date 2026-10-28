@@ -1,0 +1,20 @@
+# Cloudflare Pages project for Taste Truce. Static files come from dist/ (npm run build);
+# functions/ serves /api/*, /scene/*, /health and the session cookie on / and /classic.
+# The KV and D1 ids below are placeholders for local runs; the deploy runbook replaces them.
+name = "taste-truce"
+pages_build_output_dir = "./dist"
+compatibility_date = "2026-10-01"
+
+[vars]
+DEFAULT_SCENE = "majority"
+
+# Qloo response cache and saved scenes, filled by seed_kv.py. Never committed.
+[[kv_namespaces]]
+binding = "CACHE"
+id = "00000000000000000000000000000000"
+
+# Session and call-budget counters.
+[[d1_databases]]
+binding = "DB"
+database_name = "taste-truce"
+database_id = "00000000-0000-0000-0000-000000000000"

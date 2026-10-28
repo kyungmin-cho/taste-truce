@@ -66,6 +66,10 @@ docker run --rm -p 3000:3000 --env-file .env -v taste-truce-data:/data taste-tru
 
 On start the container runs `prewarm.py`, then the server. Snapshots already on the volume are reused without Qloo calls; if prewarm fails, the server still starts and `/health` reports that the default scene is not ready. Set `DEFAULT_SCENE` in the env file or with `-e` to pick the first scene. The image runs as an unprivileged user. The `/data` volume holds the private response cache, the saved scenes and the SQLite call budget, so keep it across restarts and use one instance per volume. [DEPLOY.md](DEPLOY.md) covers HTTPS cookies, proxies, health checks and scheduled prewarming.
 
+## Run on Cloudflare Pages
+
+[pages/](pages/README.md) serves the same app from Cloudflare Pages. The interface and `/classic` are static files there, and Pages Functions run a TypeScript port of the API. The Qloo key is a Pages secret. The response cache and saved scenes live in KV, filled once from a local cache. Sessions and call budgets live in D1.
+
 ## Configuration
 
 | Variable | Default | Purpose |
@@ -99,7 +103,7 @@ Every Qloo call passes through one shared rate limiter, and identical requests i
 python3 -m unittest discover -s tests
 ```
 
-`tests/test_cached_places.py` runs only when `TRUCE_CACHE_CHECK_DIR` points to a local Qloo cache from the Williamsburg dinner scene. The cache is not part of the repository.
+`tests/test_pages.py` sends the same requests to this server and to the Pages Functions, and checks that they give the same answers. It needs Node.js 22.18 or later, and it uses synthetic data unless `TRUCE_CACHE_CHECK_DIR` is set. `tests/test_cached_places.py` runs only when `TRUCE_CACHE_CHECK_DIR` points to a local Qloo cache from the Williamsburg dinner scene. The cache is not part of the repository.
 
 ## Data and license
 
@@ -114,4 +118,5 @@ This repository contains no Qloo data and no keys. Qloo responses are fetched at
 - `qloo.py`: server-only Qloo transport, rate limit, cache and budgets.
 - `sessions.py`, `scenes.py`, `prewarm.py`: session limits, presets and saved scenes, prewarming.
 - `web/`: the interface (React, Vite, shadcn/ui); `server.py` serves its build at `/`. See [web/README.md](web/README.md).
+- `pages/`: the Cloudflare Pages version: Functions, the KV seeding script and their tests. See [pages/README.md](pages/README.md).
 - `static/`: the previous interface, served at `/classic` and at `/` when there is no build.

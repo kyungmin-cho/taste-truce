@@ -8,3 +8,7 @@ raw/
 __pycache__/
 *.pyc
 .DS_Store
+pages/dist/
+pages/node_modules/
+.wrangler/
+.dev.vars*
