@@ -18,7 +18,7 @@ type Props = { t: Truce; request: EditRequest | null; mobile: boolean; onShare: 
 export default function FriendEditor({ t, request, mobile, onShare }: Props) {
   return (
     <Sheet open={!!request} onOpenChange={(open) => !open && t.closeEditor()}>
-      <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md" initialFocus={false}>
+      <SheetContent side="right" className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md" initialFocus={false}>
         {request && <Editor key={request.id} t={t} request={request} mobile={mobile} onShare={onShare} />}
       </SheetContent>
     </Sheet>
@@ -184,7 +184,7 @@ function Editor({ t, request, onShare }: Props & { request: EditRequest }) {
         )}
       </div>
 
-      <SheetFooter className="flex-row items-center justify-between gap-2 border-t px-5 py-3">
+      <SheetFooter className="flex-row flex-wrap items-center justify-between gap-2 border-t px-5 py-3">
         <Button type="button" variant="ghost" size="sm" disabled={!complete} onClick={() => onShare(draft)}>
           <LinkIcon />
           Copy scene link
