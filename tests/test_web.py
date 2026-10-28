@@ -62,6 +62,80 @@ class WebServingTests(unittest.TestCase):
         self.assertEqual(status,200);self.assertIn(b'/app.js',body);self.assertIn('taste_session=',headers.get('Set-Cookie',''))
         status,_,body=self.get('/classic');self.assertEqual(status,200);self.assertIn(b'/app.js',body)
 
+def plan_payload_ts(body):
+    """Run planPayload from web/src/shared/api.ts in node (type stripping) on one request body."""
+    script='import(process.argv[1]).then(A=>{const body=JSON.parse(require("fs").readFileSync(0,"utf8"));process.stdout.write(JSON.stringify(A.planPayload(body)))})'
+    out=subprocess.run([NODE,'-e',script,str(ROOT/'web'/'src'/'shared'/'api.ts')],input=json.dumps(body),capture_output=True,text=True)
+    if out.returncode:raise unittest.SkipTest('node cannot run TypeScript here: '+out.stderr.strip()[:120])
+    return json.loads(out.stdout)
+
+def fat_body():
+    """A plan request built by spreading a whole Result, as the friend editor once did. Synthetic data only."""
+    place=lambda i:{'id':'place-%03d'%i,'name':'Place %d'%i,'genre':'Restaurant','address':'%d Example Street'%i,'location':{'lat':40.7,'lon':-73.9},
+                    'tags':[{'id':'tag-%d'%j,'name':'Tag %d'%j} for j in range(8)],'ranks':[i,i+1,i+2],'worst_rank':i+2,'rank_sum':3*i+3,'observed':[True]*3}
+    people=[{'name':'Friend %d'%i,'seeds':[{'query':'Seed %d'%i,'type':'artist','entity':{'id':'x'*36,'tags':['t']*20}}],'notes':'n'*200} for i in range(3)]
+    result={'status':'done','people':people,'area':'Williamsburg NYC','occasion':'Dinner','start_radius':2000,'radius':2000,'method':'maximin-rank','planner':'local',
+            'pool_size':44,'overlap':3,'excluded_count':0,'picks':[place(i) for i in range(44)],'baseline':[place(i) for i in range(10)],
+            'personal':[[place(i) for i in range(10)] for _ in people],'concession_table':[],'concessions':[],'contrast':{'baseline_count':10,'pick_popularity_rank':None,'rows':[]},
+            'steps':[{'tool':'/search','entities':['Seed']*5,'count':5}]*20,'choices':{'0:0':'entity-a'},'veto':{'excluded':[],'no_bars':False}}
+    return {**result,'choices':{},'veto':{'excluded':[],'no_bars':False},'veto_text':'','current_pick':'place-000'}
+
+PLAN_KEYS={'people','choices','start_radius','area','occasion','veto','veto_text','current_pick'}
+
+@unittest.skipUnless(NODE,'node')
+class PlanRequestTests(unittest.TestCase):
+    def test_plan_request_carries_the_inputs_only(self):
+        body=fat_body()
+        self.assertGreater(len(json.dumps(body)),20000)
+        sent=plan_payload_ts(body)
+        self.assertEqual(set(sent),PLAN_KEYS)
+        for person in sent['people']:
+            self.assertEqual(set(person),{'name','seeds'})
+            for seed in person['seeds']:self.assertEqual(set(seed),{'query','type'})
+        self.assertEqual([p['seeds'][0]['query'] for p in sent['people']],['Seed 0','Seed 1','Seed 2'])
+        self.assertEqual((sent['area'],sent['occasion'],sent['start_radius'],sent['current_pick']),('Williamsburg NYC','Dinner',2000,'place-000'))
+        self.assertLess(len(json.dumps(sent).encode()),2000)
+
+    def test_suggested_actions_pass_and_empty_fields_are_left_out(self):
+        body={**fat_body(),'current_pick':None,'suggested_action':{'name':'exclude_place','arguments':{'id':'place-001'},'label':'extra'}}
+        sent=plan_payload_ts(body)
+        self.assertEqual(set(sent),PLAN_KEYS-{'current_pick'}|{'suggested_action'})
+        self.assertEqual(sent['suggested_action'],{'name':'exclude_place','arguments':{'id':'place-001'}})
+
+class PlanSizeLimitTests(unittest.TestCase):
+    """The real handler and its 20 KB limit: a request with the inputs only goes through, a whole Result does not."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();base=Path(self.temp.name)
+        self.env=patch.dict(os.environ,{'QLOO_CACHE_DIR':str(base/'cache'),'QLOO_STATE_DIR':str(base/'state')});self.env.start()
+        self.app=ThreadingHTTPServer(('127.0.0.1',0),server.Handler);q=Qloo();self.app.qloo=q;self.app.sessions=Sessions(q)
+        self.seen=[]
+        class Echo:
+            def run(_,token,body,emit):
+                self.seen.append(body);return {'status':'done','veto':{'excluded':[]},'keys':sorted(body)}
+        self.app.agent=Echo()
+        self.thread=threading.Thread(target=self.app.serve_forever,daemon=True);self.thread.start()
+        c=http.client.HTTPConnection(*self.app.server_address);c.request('GET','/classic');r=c.getresponse();r.read();c.close()
+        self.cookie=r.getheader('Set-Cookie').split(';')[0]
+    def tearDown(self):
+        self.app.shutdown();self.app.server_close();self.thread.join();self.env.stop();self.temp.cleanup()
+    def post(self,body):
+        data=json.dumps(body).encode()
+        c=http.client.HTTPConnection(*self.app.server_address)
+        c.request('POST','/api/plan',body=data,headers={'Content-Type':'application/json','Cookie':self.cookie,'Content-Length':str(len(data))})
+        r=c.getresponse();text=r.read().decode();c.close()
+        return r.status,text
+
+    def test_a_whole_result_is_refused_and_the_limit_stays(self):
+        status,text=self.post(fat_body())
+        self.assertEqual(status,400);self.assertIn('Invalid plan request',text);self.assertEqual(self.seen,[])
+
+    @unittest.skipUnless(NODE,'node')
+    def test_the_inputs_only_request_reaches_the_agent(self):
+        status,text=self.post(plan_payload_ts(fat_body()))
+        self.assertEqual(status,200)
+        event=json.loads(text.strip().splitlines()[-1])
+        self.assertEqual(event['event'],'result');self.assertEqual(set(event['result']['keys']),PLAN_KEYS)
+
 class WebImageTests(unittest.TestCase):
     def test_image_builds_the_front_end_and_ships_only_dist(self):
         text=(ROOT/'Dockerfile').read_text()

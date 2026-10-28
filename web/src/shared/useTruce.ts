@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getConfig, getScene, openSession, plan, type PlanBody } from './api'
-import { decodeScene, sameTastes } from './scene'
+import { decodeScene, sameTastes, sceneOf } from './scene'
 import type { Config, Question, Result, Scene, Step, Suggestion } from './types'
 
 // One run of the agent: what was asked, the steps it took and what it returned.
@@ -29,7 +29,8 @@ export function useTruce() {
   const previous = withResults.at(-2)?.result ?? null
   const live = runs.at(-1) ?? null
   // Inputs to edit or share: those of a run that stopped to ask something, else the result's.
-  const scene: Scene | null = live?.waiting ? sentScene : (current ?? sentScene)
+  // Only the inputs: the editor sends this scene back, and a whole Result is far over the server's limit.
+  const scene: Scene | null = live?.waiting ? sentScene : current ? sceneOf(current) : sentScene
 
   const patch = (id: number, change: Partial<Run>) => setRuns((all) => all.map((r) => (r.id === id ? { ...r, ...change } : r)))
 
@@ -54,7 +55,7 @@ export function useTruce() {
     setBusy(true)
     setError(null)
     setPending(null)
-    setSentScene({ people: body.people, area: body.area, occasion: body.occasion, start_radius: body.start_radius })
+    setSentScene(sceneOf(body))
     setRuns((all) => [...all, { id, ask, steps: [], result: null, error: null }])
     const steps: Step[] = []
     try {
@@ -62,7 +63,7 @@ export function useTruce() {
         steps.push(step)
         patch(id, { steps: [...steps] })
       })
-      const asked = { people: answer.people, area: answer.area, occasion: answer.occasion, start_radius: answer.start_radius }
+      const asked = sceneOf(answer)
       if (answer.status === 'clarification' && 'questions' in answer) {
         patch(id, { steps: [...steps], waiting: true })
         setSentScene(asked)
@@ -144,7 +145,7 @@ export function useTruce() {
     if (busy) return null
     const keep = current && current.area === next.area && sameTastes(current.people, next.people)
     setPreset(null)
-    return send(ask, { ...next, choices: keep ? (current.choices ?? {}) : {}, veto: NO_VETO, veto_text: '' })
+    return send(ask, { ...sceneOf(next), choices: keep ? (current.choices ?? {}) : {}, veto: NO_VETO, veto_text: '' })
   }
 
   // Answer to "which one did you mean?": an entity id, or skip this taste.

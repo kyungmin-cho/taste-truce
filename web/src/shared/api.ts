@@ -31,12 +31,28 @@ export type PlanBody = {
   suggested_action?: { name: string; arguments: Record<string, unknown> }
 }
 
+// The request carries the inputs only. Callers often build the body from a whole Result, and the
+// server refuses bodies over 20 KB, so every field is copied by name here.
+export function planPayload(body: PlanBody): PlanBody {
+  return {
+    people: body.people.map((p) => ({ name: p.name, seeds: p.seeds.map((s) => ({ query: s.query, type: s.type })) })),
+    choices: body.choices,
+    start_radius: body.start_radius,
+    area: body.area,
+    occasion: body.occasion,
+    veto: body.veto,
+    veto_text: body.veto_text,
+    ...(body.current_pick ? { current_pick: body.current_pick } : {}),
+    ...(body.suggested_action ? { suggested_action: { name: body.suggested_action.name, arguments: body.suggested_action.arguments } } : {}),
+  }
+}
+
 // /api/plan streams NDJSON: step events while the agent works, then one result or error.
 export async function plan(body: PlanBody, onStep: (step: Step) => void): Promise<Answer> {
   const response = await fetch('/api/plan', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+    body: JSON.stringify(planPayload(body)),
   })
   if (!response.ok || !response.body) {
     const data = await response.json().catch(() => ({}))
