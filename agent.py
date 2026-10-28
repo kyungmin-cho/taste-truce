@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import re
 import time
-from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, ranked, taste_contrast, concession_table, venue_terms
+from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, kept_tag, ranked, taste_contrast, concession_table, venue_terms
 from qloo import QlooError, BudgetError
 from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for, max_radius
 
@@ -27,7 +27,7 @@ def compact(e):
     return {'id':e['entity_id'], 'name':e['name'], 'types':e.get('types', [e.get('subtype')]),
             'location': e.get('location'), 'address': prop.get('address',''),
             'genre': (prop.get('primary_genre') or {}).get('name',''),
-            'tags':[{'id':t.get('id') or t['tag_id'],'name':t.get('name') or t.get('id') or t['tag_id']} for t in e.get('tags') or [] if t.get('id') or t.get('tag_id')],
+            'tags':[t for t in ({'id':t.get('id') or t['tag_id'],'name':t.get('name') or t.get('id') or t['tag_id']} for t in e.get('tags') or [] if t.get('id') or t.get('tag_id')) if kept_tag(t)],
             'price_level':prop.get('price_level'), 'explainability':((e.get('query') or {}).get('explainability') or {}).get('signal.interests.entities',[]),
             'affinity':(e.get('query') or {}).get('affinity'), 'popularity':e.get('popularity'), 'closed':prop.get('is_closed',False),
             'venue_terms':venue_terms(' '.join(prop.get(k) or '' for k in DESCRIPTIONS if isinstance(prop.get(k),str)))}

@@ -94,8 +94,15 @@ class ConsensusTests(unittest.TestCase):
         self.assertEqual(compact({'entity_id':'x','name':'x'})['venue_terms'],[])
     def test_search_and_insights_tag_identifiers_are_normalized(self):
         for key in ['id','tag_id']:
-            e=compact({'entity_id':'example','name':'Example','tags':[{key:'urn:tag:example','name':'Example'}]})
-            self.assertEqual(e['tags'],[{'id':'urn:tag:example','name':'Example'}])
+            e=compact({'entity_id':'example','name':'Example','tags':[{key:'urn:tag:genre:example','name':'Example'}]})
+            self.assertEqual(e['tags'],[{'id':'urn:tag:genre:example','name':'Example'}])
+    def test_compact_keeps_only_tags_something_reads(self):
+        tags=[{'id':'urn:tag:menu_highlight:place:x','name':'Dumplings'},{'id':'urn:tag:ambience:qloo:cozy','name':'Cozy'},
+              {'id':'urn:tag:noise_level:qloo:loud','name':'Loud'},{'id':'urn:tag:setting:qloo:supper_club','name':'Supper club'},
+              {'id':'urn:tag:amenity:qloo:vegetarian_options','name':'Vegetarian options'},{'id':'jazz','name':'Jazz'},
+              {'id':'urn:tag:payments:place:cash','name':'Cash only'}]
+        kept=[t['name'] for t in compact({'entity_id':'x','name':'x','tags':tags})['tags']]
+        self.assertEqual(kept,['Cozy','Loud','Supper club','Vegetarian options','Jazz'])
 
     def test_exact_name_homonyms_require_clarification(self):
         self.assertTrue(ambiguity([{'name':'Example'},{'name':'Example'}],'Example'))

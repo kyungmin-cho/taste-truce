@@ -59,6 +59,16 @@ const VENUE_TAGS: { [kind: string]: Set<string> } = {
   nightclub: new Set(CLUB_TAGS),
 }
 
+const DESCRIPTIVE = ['urn:tag:genre:', 'urn:tag:category:', 'urn:tag:offerings:', 'urn:tag:dining_options:', 'urn:tag:ambience:', 'urn:tag:culinary_style:', 'urn:tag:service_type:', 'urn:tag:beverage_offering:']
+const VEGETARIAN = ['urn:tag:offerings:place:vegetarian_options', 'urn:tag:category:place:vegetarian_restaurant', 'urn:tag:genre:place:restaurant:vegetarian', 'urn:tag:amenity:qloo:vegetarian_options', 'urn:tag:dietary_option:qloo:vegetarian']
+const VETO_TAGS = new Set(['Loud', 'Busy', 'Lively', 'Expensive', 'Moderately expensive'].map(casefold))
+
+// Whether any rule, comparison or page reads this tag. A Qloo place lists a few hundred; about a third are kept.
+export function keptTag(t: Obj): boolean {
+  const id: string = t.id
+  return !id.startsWith('urn:') || DESCRIPTIVE.some((p) => id.startsWith(p)) || VEGETARIAN.includes(id) || VENUE_TAGS.bar.has(id) || VETO_TAGS.has(casefold(t.name))
+}
+
 export function venueTerms(text: string): string[] {
   const found = new Set<string>()
   for (const m of foodBars(text || '').matchAll(TERMS_ALL)) found.add(m[0].toLowerCase())
@@ -110,8 +120,6 @@ function evidenceOf(e: Obj, category: string): string[] {
   return found
 }
 
-const VEGETARIAN = ['urn:tag:offerings:place:vegetarian_options', 'urn:tag:category:place:vegetarian_restaurant', 'urn:tag:genre:place:restaurant:vegetarian', 'urn:tag:amenity:qloo:vegetarian_options', 'urn:tag:dietary_option:qloo:vegetarian']
-
 export function eligible(e: Obj, occasion: string, veto: Obj): boolean {
   const tags = tagIds(e)
   if (!OCCASIONS[occasion].every((t) => tags.has(t))) return false
@@ -144,15 +152,13 @@ export function consensus(pool: Obj[], lists: Obj[][], method = 'maximin-rank', 
   return candidates.sort((a, b) => cmp(key(a), key(b))).slice(0, limit)
 }
 
-const PREFIXES = ['urn:tag:genre:', 'urn:tag:category:', 'urn:tag:offerings:', 'urn:tag:dining_options:', 'urn:tag:ambience:', 'urn:tag:culinary_style:', 'urn:tag:service_type:', 'urn:tag:beverage_offering:']
-
 export function concession(person: Obj, rows: Obj[], pick: Obj, index: number): Obj {
   const first = rows[0]
   const rank = pick.ranks[index]
   const observed = pick.observed[index]
   const descriptive = (e: Obj) => {
     const out = new Map<string, string>()
-    for (const t of e.tags ?? []) if (!t.id.startsWith('urn:') || PREFIXES.some((p) => t.id.startsWith(p))) out.set(t.id, t.name)
+    for (const t of e.tags ?? []) if (!t.id.startsWith('urn:') || DESCRIPTIVE.some((p) => t.id.startsWith(p))) out.set(t.id, t.name)
     return out
   }
   const firstTags = descriptive(first)

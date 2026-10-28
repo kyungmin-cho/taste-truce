@@ -32,6 +32,16 @@ CLUB_TAGS = {'urn:tag:ambience:qloo:club_like', 'urn:tag:ambience:qloo:nightclub
 VENUE_TAGS = {'bar': CLUB_TAGS | {'urn:tag:amenity:qloo:hookah', 'urn:tag:activity_type:qloo:hookah_smoking', 'urn:tag:activity_type:qloo:smoking_hookah'},
               'pub': set(), 'nightclub': CLUB_TAGS}
 
+DESCRIPTIVE = ('urn:tag:genre:', 'urn:tag:category:', 'urn:tag:offerings:', 'urn:tag:dining_options:', 'urn:tag:ambience:', 'urn:tag:culinary_style:', 'urn:tag:service_type:', 'urn:tag:beverage_offering:')
+VEGETARIAN = {'urn:tag:offerings:place:vegetarian_options','urn:tag:category:place:vegetarian_restaurant','urn:tag:genre:place:restaurant:vegetarian','urn:tag:amenity:qloo:vegetarian_options','urn:tag:dietary_option:qloo:vegetarian'}
+VETO_TAGS = ('Loud', 'Busy', 'Lively', 'Expensive', 'Moderately expensive')
+
+def kept_tag(t):
+    """Whether any rule, comparison or page reads this tag. A Qloo place lists a few hundred; about a third are kept."""
+    i = t['id']
+    return (not i.startswith('urn:') or i.startswith(DESCRIPTIVE) or i in VEGETARIAN or i in VENUE_TAGS['bar']
+            or t['name'].casefold() in {x.casefold() for x in VETO_TAGS})
+
 def venue_terms(text):
     """Drinking-venue phrases in Qloo's description of a place, e.g. 'aperitivo bar' or 'supper club'."""
     text = FOOD_BARS.sub(' ', text or '')
@@ -78,7 +88,7 @@ def eligible(e, occasion, veto):
     categories = set(veto.get('categories', [])) | ({'bar'} if veto.get('no_bars') else set())
     if any(venue_evidence(e, c) for c in categories):return False
     if {t['name'].casefold() for t in e.get('tags',[])} & {t.casefold() for t in veto.get('tags',[])}:return False
-    if veto.get('vegetarian') and not tags & {'urn:tag:offerings:place:vegetarian_options','urn:tag:category:place:vegetarian_restaurant','urn:tag:genre:place:restaurant:vegetarian','urn:tag:amenity:qloo:vegetarian_options','urn:tag:dietary_option:qloo:vegetarian'}:return False
+    if veto.get('vegetarian') and not tags & VEGETARIAN:return False
     if veto.get('max_price_level') and (not isinstance(e.get('price_level'),(int,float)) or not 0<e['price_level']<=veto['max_price_level']):return False
     return not e.get('closed') and e['id'] not in veto.get('excluded', [])
 
@@ -102,9 +112,8 @@ def concession(person, rows, pick, index):
     first = rows[0]
     rank = pick['ranks'][index]
     observed = pick['observed'][index]
-    prefixes = ('urn:tag:genre:', 'urn:tag:category:', 'urn:tag:offerings:', 'urn:tag:dining_options:', 'urn:tag:ambience:', 'urn:tag:culinary_style:', 'urn:tag:service_type:', 'urn:tag:beverage_offering:')
     def descriptive(e):
-        return {t['id']:t['name'] for t in e.get('tags', []) if not t['id'].startswith('urn:') or t['id'].startswith(prefixes)}
+        return {t['id']:t['name'] for t in e.get('tags', []) if not t['id'].startswith('urn:') or t['id'].startswith(DESCRIPTIVE)}
     first_tags = descriptive(first)
     pick_tags = descriptive(pick)
     removed = sorted({first_tags[k] for k in first_tags.keys()-pick_tags.keys()})[:3]

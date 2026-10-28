@@ -5,7 +5,7 @@
 //                   a row is either a whole compacted entity or {"p": <hash>, "affinity", "explainability", "popularity"}
 //   p:<hash>        the rest of a compacted entity, stored once however many responses list it
 // The signature is qloo.Qloo.signature, so a seeded entry answers exactly the request that produced it.
-import { venueTerms } from './logic.ts'
+import { keptTag, venueTerms } from './logic.ts'
 import { BudgetError, InternalError, QlooError, isDict, pyStr, signature, type Obj } from './py.ts'
 import type { Session, Store } from './store.ts'
 
@@ -29,7 +29,7 @@ export function compact(e: Obj): Obj {
     id: e.entity_id, name: e.name, types: get(e, 'types', [get(e, 'subtype')]),
     location: get(e, 'location'), address: get(prop, 'address', ''),
     genre: get(prop.primary_genre || {}, 'name', ''),
-    tags: (e.tags || []).filter((t: Obj) => t.id || t.tag_id).map((t: Obj) => ({ id: t.id || t.tag_id, name: t.name || t.id || t.tag_id })),
+    tags: (e.tags || []).filter((t: Obj) => t.id || t.tag_id).map((t: Obj) => ({ id: t.id || t.tag_id, name: t.name || t.id || t.tag_id })).filter(keptTag),
     price_level: get(prop, 'price_level'), explainability: get(query.explainability || {}, 'signal.interests.entities', []),
     affinity: get(query, 'affinity'), popularity: get(e, 'popularity'), closed: get(prop, 'is_closed', false),
     venue_terms: venueTerms(DESCRIPTIONS.filter((k) => typeof prop[k] === 'string').map((k) => prop[k] || '').join(' ')),

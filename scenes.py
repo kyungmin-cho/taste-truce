@@ -18,10 +18,15 @@ PRESETS={
 VERSION=2
 # Provider scores the agent ranks with; neither page shows them, so responses leave them out.
 RAW_FIELDS=('affinity','explainability','popularity')
+# Of a place's tags, the pages show only the first three of these kinds (/classic, beside each contrast row).
+SHOWN_TAG=re.compile(r'urn:tag:(ambience|culinary_style|offerings|service_type):')
 
 def public(value):
-    """A copy of a result without the provider's raw scores; saved scenes keep them."""
-    if isinstance(value,dict):return {k:public(v) for k,v in value.items() if not ('id' in value and k in RAW_FIELDS)}
+    """A copy of a result without the provider's raw scores and with only the tags a page shows; saved scenes keep both."""
+    if isinstance(value,dict):
+        place='id' in value
+        return {k:([t for t in v if SHOWN_TAG.search(t['id'])][:3] if place and k=='tags' and isinstance(v,list) else public(v))
+                for k,v in value.items() if not (place and k in RAW_FIELDS)}
     if isinstance(value,list):return [public(v) for v in value]
     return value
 

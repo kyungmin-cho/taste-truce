@@ -27,11 +27,15 @@ export function sceneBody(name: string): Obj {
 
 // Provider scores the agent ranks with; neither page shows them, so responses leave them out.
 const RAW_FIELDS = ['affinity', 'explainability', 'popularity']
+// Of a place's tags, the pages show only the first three of these kinds (/classic, beside each contrast row).
+const SHOWN_TAG = /urn:tag:(ambience|culinary_style|offerings|service_type):/
+const shownTags = (tags: Obj[]) => tags.filter((t) => SHOWN_TAG.test(t.id)).slice(0, 3)
+
 export function publicResult(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(publicResult)
   if (isDict(value)) {
-    const raw = Object.hasOwn(value, 'id')
-    return Object.fromEntries(Object.entries(value).filter(([k]) => !(raw && RAW_FIELDS.includes(k))).map(([k, v]) => [k, publicResult(v)]))
+    const place = Object.hasOwn(value, 'id')
+    return Object.fromEntries(Object.entries(value).filter(([k]) => !(place && RAW_FIELDS.includes(k))).map(([k, v]) => [k, place && k === 'tags' && Array.isArray(v) ? shownTags(v) : publicResult(v)]))
   }
   return value
 }
@@ -39,7 +43,9 @@ export function publicResult(value: unknown): unknown {
 // The same filter as publicResult, applied while serializing instead of on a copy.
 export function publicJson(value: unknown): string {
   return JSON.stringify(value, function (this: Obj, key: string, v: unknown) {
-    return RAW_FIELDS.includes(key) && Object.hasOwn(this, 'id') && !Array.isArray(this) ? undefined : v
+    if (Array.isArray(this) || !Object.hasOwn(this, 'id')) return v
+    if (key === 'tags' && Array.isArray(v)) return shownTags(v)
+    return RAW_FIELDS.includes(key) ? undefined : v
   })
 }
 
