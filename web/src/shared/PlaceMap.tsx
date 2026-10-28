@@ -63,9 +63,16 @@ export default function PlaceMap({ places, pickId, activeId, onSelect, className
         iconAnchor: [size / 2, size / 2],
       })
       const marker = L.marker([p.location.lat, p.location.lon], { icon, zIndexOffset: pick ? 1000 : active ? 900 : 0, title: p.name, alt: p.name, keyboard: true })
+      const label = document.createElement('span')
+      label.className = 'tt-pin-label'
+      label.append(Object.assign(document.createElement('strong'), { textContent: p.name }))
+      if (p.address) label.append(Object.assign(document.createElement('small'), { textContent: p.address }))
+      // Beside the pin, toward the middle of the map, so a label near the top edge stays on screen.
+      marker.bindTooltip(label, { direction: 'auto', offset: [size / 2 + 2, 0] })
       marker.on('click', () => select.current?.(p.id))
-      marker.bindTooltip(p.name, { direction: 'top', offset: [0, -size / 2] })
       group.addLayer(marker)
+      // The selected place keeps its label open: a tap has no hover to show the address.
+      if (active) marker.openTooltip()
     }
   }, [places, pickId, activeId])
 

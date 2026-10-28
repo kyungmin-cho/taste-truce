@@ -152,5 +152,10 @@
   color: var(--background);
 }
 .leaflet-container { font-family: var(--font-sans); background: var(--muted); }
+/* Pin label: the name, and the address on a second line. */
+.tt-pin-label { display: grid; gap: 1px; width: max-content; max-width: 15rem; white-space: normal; }
+.tt-pin-label small { color: var(--muted-foreground); font-size: 11px; }
+/* Phones zoom with two fingers; the buttons would cover a pin's label at the left edge. */
+@media (pointer: coarse) { .leaflet-control-zoom { display: none; } }
 /* OSM tiles, quieted so the pins carry the color. */
 .tt-tiles { filter: grayscale(1) contrast(0.82) brightness(1.06); }

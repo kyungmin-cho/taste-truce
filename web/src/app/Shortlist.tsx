@@ -67,7 +67,10 @@ export function Shortlist({ t, r, popular, activeId, setActiveId }: Props) {
                   <span className="truncate text-[13px] font-medium">{p.name}</span>
                   {shared.has(p.id) && (popular ? <Mark label="Also on the taste shortlist" icon={ListChecksIcon} /> : <Mark label="Also in the popular top 10" icon={TrendingUpIcon} />)}
                 </div>
-                <div className="truncate text-[11px] text-muted-foreground">{p.genre}</div>
+                <div className="truncate text-[11px] text-muted-foreground" data-tt="address">
+                  {p.genre}
+                  {p.address && ` · ${p.address}`}
+                </div>
               </TableCell>
               {!popular && ranks && ranks.ranks.map((rank, j) => <RankCell key={j} rank={rank} observed={ranks.observed[j]} worst={j === worst} />)}
               <TableCell className="pr-1">
