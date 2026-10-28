@@ -7,6 +7,11 @@ compatibility_date = "2026-10-01"
 
 [vars]
 DEFAULT_SCENE = "majority"
+# The Qloo key is shared with another server that keeps 1,000 calls a month for use elsewhere.
+# This installation may make MONTHLY_CALL_CAP - MONTHLY_RESERVED_CALLS = 500 calls a month (UTC),
+# read on every call, so a new value applies at once. See the deploy runbook before changing it.
+MONTHLY_CALL_CAP = "8000"
+MONTHLY_RESERVED_CALLS = "7500"
 
 # Qloo response cache and saved scenes, filled by seed_kv.py. Never committed.
 [[kv_namespaces]]

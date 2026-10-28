@@ -9,8 +9,8 @@ This folder runs the same app as `server.py` on Cloudflare Pages: the built inte
 
 ## Storage
 
-- **KV `CACHE`**: the Qloo response cache and the saved scenes. It is filled once from a local response cache with `seed_kv.py` and is never committed. Each response stores only its scores. Each place is stored once under a content hash and read with bulk gets, so a plan stays within the Workers Free CPU budget. Every new Qloo response the Functions fetch is one more KV write.
-- **D1 `DB`**: the sessions and call counters behind the Python server's limits. These are the session call cap, the monthly cap with its reserve, the per-IP daily session and call caps, and the 5-per-second pacing. Each check is one conditional `UPDATE`, so it holds across isolates. The tables are created on first use.
+- **KV `CACHE`**: the Qloo response cache and the saved scenes. It is filled once from a local response cache with `seed_kv.py` and is never committed. Each response stores only its scores. Each place is stored once under a content hash and read with bulk gets. Every new Qloo response the Functions fetch is one more KV write.
+- **D1 `DB`**: the sessions and call counters behind the Python server's limits. These are the session call cap, the monthly cap with its reserve, the per-IP daily session and call caps, and the 5-per-second pacing. Counters that move together are checked in one statement and counted in the same batch, which D1 runs as one transaction, so they hold across isolates and a refused call moves none of them. The tables are created on first use; after a schema change, start local runs with a fresh `--persist-to` folder.
 - **Session cookie**: an HMAC over a random id, the issue time and a hash of the visitor's IP, so opening the page writes nothing. Set `SESSION_SECRET`.
 
 Pages adds three limits that the Python server does not have, to keep inside the free quotas:
@@ -19,9 +19,21 @@ Pages adds three limits that the Python server does not have, to keep inside the
 |---|---|---|
 | `DAILY_CALL_CAP` | 500 | Qloo calls per day across all visitors. Each new response is a KV write, and KV Free allows 1,000 writes a day |
 | `IP_DAILY_PLAN_CAP` | 200 | plans per IP per day. Plans served from the cache still read KV |
-| `DAILY_PLAN_CAP` | 600 | plans per day in total, about 60,000 of the 100,000 daily KV reads |
+| `DAILY_PLAN_CAP` | 600 | plans per day in total. A cached plan reads about 90 KV keys, so 600 plans stay near half of the 100,000 daily key reads |
 
-The Python server's variables (`SESSION_CALL_CAP`, `MONTHLY_CALL_CAP`, `MONTHLY_RESERVED_CALLS`, `IP_DAILY_SESSION_CAP`, `IP_DAILY_CALL_CAP`, `SESSION_TTL_SECONDS`, `QLOO_CACHE_TTL_SECONDS`, `DEFAULT_SCENE`, `DEFAULT_SCENE_TTL_SECONDS`, `LLM_*`) mean the same here.
+The Python server's variables (`SESSION_CALL_CAP`, `MONTHLY_CALL_CAP`, `MONTHLY_RESERVED_CALLS`, `IP_DAILY_SESSION_CAP`, `IP_DAILY_CALL_CAP`, `SESSION_TTL_SECONDS`, `QLOO_CACHE_TTL_SECONDS`, `DEFAULT_SCENE`, `DEFAULT_SCENE_TTL_SECONDS`, `LLM_*`) mean the same here, with one difference: the Python server applies `MONTHLY_RESERVED_CALLS` when a month's row is first written, while Pages counts only its own calls and compares them with `MONTHLY_CALL_CAP - MONTHLY_RESERVED_CALLS` on every call, so a new value applies within the month. `wrangler.toml` sets that share to 500 calls a month.
+
+A plan holds its session for 30 seconds and renews the hold every 10 seconds while it runs. A second plan in the same session gets 409 with `Retry-After`, the most it has to wait.
+
+## CPU
+
+Workers Free allows 10 ms of CPU per request. Three things keep a plan small:
+
+- `compact` keeps only the tags a rule, a comparison or a page reads, about a third of what Qloo lists (`tests/test_cached_places.py` checks on a real cache that no decision changes).
+- Responses carry only the tags a page shows, so a plan answer is about 60 KB instead of 800 KB. The Python server sends the same.
+- `src/warm.ts` runs the agent once on made-up data while the isolate starts, so the first real plan does not also compile the code. This assumes Cloudflare counts global scope as startup (1 s limit), not as part of the first request; the deploy runbook checks the real CPU numbers.
+
+`node test/bench.ts <bulk file>` prints node CPU times per route, cold and warm. These are not Cloudflare measurements; read the Functions metrics after a deploy.
 
 ## Run locally
 
@@ -30,7 +42,7 @@ The Python server's variables (`SESSION_CALL_CAP`, `MONTHLY_CALL_CAP`, `MONTHLY_
 npm ci && npm run build
 # Seed a local KV from a Qloo response cache. Keep the bulk file outside the repository.
 python3 seed_kv.py --cache-dir ~/.cache/taste-truce/responses --out /tmp/taste-truce-kv.json
-npx wrangler kv bulk put /tmp/taste-truce-kv.json --binding CACHE --local --persist-to /tmp/taste-truce-pages
+npx wrangler kv bulk put /tmp/taste-truce-kv.json --binding CACHE --local --persist-to /tmp/taste-truce-pages   # a new folder
 npx wrangler pages dev --persist-to /tmp/taste-truce-pages --binding SESSION_SECRET=$(openssl rand -hex 24)
 ```
 
@@ -48,9 +60,14 @@ npx wrangler pages secret put SESSION_SECRET --project-name taste-truce
 npm run build && npx wrangler pages deploy --branch main
 ```
 
+The seed is about 630 KV writes and KV Free allows 1,000 a day. On the UTC day of a seed, charge 200 calls to that day's counter, so new Qloo responses (one KV write each) stop at 300 that day; the next UTC day starts from 0 again:
+
+```sh
+npx wrangler d1 execute taste-truce --remote --command "CREATE TABLE IF NOT EXISTS counters (key TEXT PRIMARY KEY, used INTEGER NOT NULL); INSERT INTO counters VALUES ('calls:$(date -u +%F)', 200) ON CONFLICT(key) DO UPDATE SET used=used+200"
+```
+
 ## Tests
 
-- `npm test`: sessions, limits and pacing on D1, with `node:sqlite` standing in.
+- `npm test`: sessions, limits, leases and pacing on D1, with `node:sqlite` standing in, also with a D1 whose `changes()` says something else.
 - `npm run typecheck`
 - `python3 -m unittest discover -s tests` from the parent folder includes `test_pages.py`. It runs the parity flows on synthetic data, and also on a real cache when `TRUCE_CACHE_CHECK_DIR` is set.
-- `node test/bench.ts <bulk file>` prints the CPU time of each route.
