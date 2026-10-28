@@ -4,7 +4,7 @@ import './warm.ts'
 import { BudgetError, QlooError, ValueError, isDict, pyEq, pyStr, truthy, type Obj } from './py.ts'
 import { Qloo, type KV } from './qloo.ts'
 import { PRESETS, defaultScene, health as sceneHealth, publicJson, readScene, saveScene, sceneBody, sceneMeta } from './scenes.ts'
-import { D1Store, cookieToken, type D1 } from './store.ts'
+import { D1Store, HEARTBEAT, cookieToken, type D1 } from './store.ts'
 
 export type Env = Obj & { CACHE: KV; DB: D1 }
 
@@ -13,7 +13,7 @@ const LIMIT = 20000
 function headers(contentType: string, extra: Obj = {}): Headers {
   return new Headers({ 'Content-Type': contentType, 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'Cache-Control': 'no-store', ...extra })
 }
-export const json = (status: number, data: unknown) => new Response(JSON.stringify(data), { status, headers: headers('application/json') })
+export const json = (status: number, data: unknown, extra: Obj = {}) => new Response(JSON.stringify(data), { status, headers: headers('application/json', extra) })
 
 const ip = (request: Request) => request.headers.get('CF-Connecting-IP') || '127.0.0.1'
 
@@ -73,11 +73,12 @@ export async function plan(request: Request, env: Env, waitUntil: (p: Promise<un
   const body = await readBody(request)
   if (!body) return json(400, { error: 'Invalid plan request' })
   const store = new D1Store(env, env.DB)
-  const [session, error] = await store.acquire(cookieToken(request.headers.get('Cookie')), ip(request))
+  const [session, error, retry] = await store.acquire(cookieToken(request.headers.get('Cookie')), ip(request))
   if (error === 'unknown') return json(403, { error: 'Open the home page to start a valid session.' })
   if (error === 'limit') return json(429, { error: 'Daily new-session limit reached. The saved scene remains available.' })
   if (error === 'plans') return json(429, { error: 'Daily plan limit reached. The saved scene remains available.' })
-  if (error === 'busy') return json(409, { error: 'A plan is already running in this session' })
+  // Same body as the Python server; Retry-After says when the running plan's lease ends at the latest.
+  if (error === 'busy') return json(409, { error: 'A plan is already running in this session' }, { 'Retry-After': String(retry) })
   const stream = new TransformStream<Uint8Array, Uint8Array>()
   const writer = stream.writable.getWriter()
   const encoder = new TextEncoder()
@@ -88,6 +89,7 @@ export async function plan(request: Request, env: Env, waitUntil: (p: Promise<un
   }
   const emit = (event: Obj) => send(JSON.stringify(event))
   const qloo = new Qloo(env, env.CACHE, store)
+  const heartbeat = setInterval(() => store.renew(session!).catch(() => {}), HEARTBEAT * 1000)
   const work = (async () => {
     try {
       const result = await run(env, qloo, session!, body, emit)
@@ -111,6 +113,7 @@ export async function plan(request: Request, env: Env, waitUntil: (p: Promise<un
         emit({ event: 'error', message: 'The plan could not be completed. Please try again.' })
       }
     } finally {
+      clearInterval(heartbeat)
       await store.release(session!).catch(() => {})
       await writer.close().catch(() => {})
     }

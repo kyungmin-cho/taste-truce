@@ -56,7 +56,9 @@ export async function plan(body: PlanBody, onStep: (step: Step) => void): Promis
   })
   if (!response.ok || !response.body) {
     const data = await response.json().catch(() => ({}))
-    throw new Error(data.error || 'Could not start a plan.')
+    // Pages sends Retry-After with 409 (another plan holds this session); the Python server does not.
+    const retry = Number(response.headers.get('Retry-After'))
+    throw new Error((data.error || 'Could not start a plan.') + (retry > 0 ? `. Try again in ${retry} s.` : ''))
   }
   const reader = response.body.getReader()
   const decoder = new TextDecoder()

@@ -29,7 +29,7 @@ async function plan(vetoText=''){
   const body={people,choices,start_radius:Number(el('radius').value),area:el('area').value,occasion:el('occasion').value,veto,veto_text:vetoText,current_pick:result?.picks?.[0]?.id,...(pendingAction?{suggested_action:pendingAction}:{})};pendingAction=null;
   try{
     const response=await fetch('/api/plan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-    if(!response.ok)throw new Error((await response.json()).error||'Could not start a plan.');
+    if(!response.ok){const retry=Number(response.headers.get('Retry-After'));throw new Error(((await response.json()).error||'Could not start a plan.')+(retry>0?`. Try again in ${retry} s.`:''));}
     const reader=response.body.getReader(),decoder=new TextDecoder();let buffer='',finished=false;
     while(true){
       const {done,value}=await reader.read();buffer+=decoder.decode(value||new Uint8Array(),{stream:!done});
