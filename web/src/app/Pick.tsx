@@ -65,13 +65,30 @@ export function PopularHero({ r }: { r: Result }) {
   )
 }
 
-export function FriendName({ person, className }: { person: Person; className?: string }) {
+type Share = { seed: string; score: number }
+
+// A friend's tastes; with Qloo explainability, how much each one counts toward the fair pick's score.
+export function FriendName({ person, shares, className }: { person: Person; shares?: Share[]; className?: string }) {
+  const total = shares?.reduce((n, x) => n + x.score, 0) ?? 0
   return (
     <Tooltip>
       <TooltipTrigger render={<span tabIndex={0} />} className={cn('truncate', focusRing, className)}>
         {person.name}
       </TooltipTrigger>
-      <TooltipContent>{person.seeds.map((s) => s.query).join(' · ')}</TooltipContent>
+      <TooltipContent>
+        {total > 0 ? (
+          <span className="grid grid-cols-[auto_auto] gap-x-3 tabular-nums" data-tt="seed-shares">
+            {shares!.map((x) => (
+              <span key={x.seed} className="contents">
+                <span>{x.seed}</span>
+                <span className="text-right">{Math.round((x.score / total) * 100)}%</span>
+              </span>
+            ))}
+          </span>
+        ) : (
+          person.seeds.map((s) => s.query).join(' · ')
+        )}
+      </TooltipContent>
     </Tooltip>
   )
 }
@@ -88,7 +105,7 @@ export function RankMeters({ r }: { r: Result }) {
         const own = r.personal[i]?.[0]
         return (
           <div key={person.name + i} className="grid grid-cols-[7.5rem_1fr] items-center gap-x-3 gap-y-1">
-            <FriendName person={person} className="text-[13px] font-medium" />
+            <FriendName person={person} shares={r.concessions[i]?.contributions} className="text-[13px] font-medium" />
             <div className="relative h-6" role="img" aria-label={`${person.name}: ${fmtRank(rank, seen)} of ${r.pool_size}`}>
               <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 rounded-full bg-muted" />
               <div className="absolute top-1/2 left-0 h-1 -translate-y-1/2 rounded-full bg-primary/25" style={{ width: `${depth * 100}%` }} />
