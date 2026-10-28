@@ -4,7 +4,7 @@ Taste Truce shows who concedes what when friends with different tastes pick a pl
 
 Each friend brings a few films, artists, or brands. Qloo turns those tastes into a ranking of the same candidate places for every person. The agent then picks the place where the worst-off friend concedes the least and shows the evidence as a concession table: one row per place, one column per friend, and each cell is that friend's rank for that place.
 
-Live demo: <DEMO_URL>
+Live demo: https://taste-truce.pages.dev
 
 ## A short demo path
 
