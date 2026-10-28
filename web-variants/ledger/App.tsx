@@ -13,12 +13,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { PlaceMap } from '@/shared/PlaceMap'
+import { hasExclusions, openStarters } from '@/shared/conditions'
 import { fmtRank, rankDepth, worstSet } from '@/shared/rank'
 import { qlooCalls, viewStep } from '@/shared/steps'
 import type { Person, Result, Step } from '@/shared/types'
 import { useTruce, type Truce } from '@/shared/useTruce'
 
-const STARTERS = ['No bars please', 'Somewhere quieter']
 
 export function App() {
   const t = useTruce()
@@ -220,7 +220,7 @@ function Conditions({ t, result }: { t: Truce; result: Result }) {
     setText('')
     t.addCondition(value)
   }
-  const excluded = result.veto.excluded.length > 0 || Boolean(result.veto.no_bars) || result.excluded_count > 0
+  const excluded = hasExclusions(result)
   return (
     <section aria-label="Add a condition" className="flex flex-col gap-3">
       <form onSubmit={submit}>
@@ -243,7 +243,7 @@ function Conditions({ t, result }: { t: Truce; result: Result }) {
         </InputGroup>
       </form>
       <div className="flex flex-wrap items-center gap-2">
-        {STARTERS.map((label) => (
+        {openStarters(result).map((label) => (
           <Button key={label} size="sm" variant="outline" disabled={t.busy} onClick={() => t.addCondition(label.toLowerCase())}>
             {label}
           </Button>
@@ -328,11 +328,44 @@ function Shortlist({ t, result }: { t: Truce; result: Result }) {
   )
 }
 
-// The agent's work for the result on screen (or the run in progress), one tool call per row.
+// The agent's work for the result on screen (or the run in progress). Consecutive calls to the
+// same Qloo endpoint fold into one row; each call stays readable inside it.
+type StepGroup = { from: number; to: number; title: string; tool: string | null; lines: string[]; count: number | null; calls: { label: string; count: number | null; popularity: boolean }[]; list: string[] | null; kind: string }
+
+const plural = (n: number, one: string) => `${n} ${n === 1 ? one : one + 's'}`
+
+function foldSteps(steps: Step[]): StepGroup[] {
+  const out: StepGroup[] = []
+  steps.forEach((step, i) => {
+    const v = viewStep(step)
+    const family = step.tool === '/search' ? 'search' : step.tool.includes('rescore') ? 'rescore' : step.tool.startsWith('/v2/insights') ? 'insights' : null
+    const last = out.at(-1)
+    const call = { label: v.lines.join(' · '), count: v.count, popularity: step.tool.includes('popularity') }
+    if (family && last && last.kind === family) {
+      last.to = i + 1
+      last.calls.push(call)
+      last.count = family === 'rescore' ? last.count : (last.count ?? 0) + (v.count ?? 0)
+      return
+    }
+    out.push({ from: i + 1, to: i + 1, title: v.title, tool: v.kind === 'qloo' ? v.title : null, lines: v.lines, count: v.count, calls: [call], list: v.list, kind: family ?? v.kind })
+  })
+  for (const g of out) {
+    const n = g.calls.length
+    if (g.kind === 'search') Object.assign(g, { title: `Looked up ${plural(n, 'taste')}`, tool: `/search × ${n}`, lines: [] })
+    if (g.kind === 'insights' && n > 1) {
+      const people = g.calls.filter((c) => !c.popularity).length
+      Object.assign(g, { title: `Read ${plural(people, 'taste profile')}${people < n ? ' + popularity' : ''}`, tool: `/v2/insights × ${n}`, lines: [] })
+    }
+    if (g.kind === 'rescore') Object.assign(g, { title: `Ranked ${plural(g.count ?? 0, 'place')} per friend`, tool: `/v2/insights · rescore × ${n}`, lines: [] })
+  }
+  return out
+}
+
 function AgentRail({ t }: { t: Truce }) {
   const run = t.busy ? t.live : [...t.runs].reverse().find((r) => r.result)
   const steps = run?.steps ?? []
-  const max = Math.max(1, ...steps.map((s) => s.count ?? 0))
+  const groups = foldSteps(steps)
+  const max = Math.max(1, ...groups.map((g) => g.count ?? 0))
   const calls = qlooCalls(steps).reduce((n, [, c]) => n + c, 0)
   const end = useRef<HTMLLIElement>(null)
   useEffect(() => {
@@ -348,15 +381,11 @@ function AgentRail({ t }: { t: Truce }) {
           {steps.length} steps · {calls} Qloo calls
         </span>
       </div>
-      {run?.ask && (
-        <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">
-          “{run.ask}”
-        </p>
-      )}
+      {run?.ask && <p className="mt-3 rounded-md bg-muted px-3 py-2 text-sm">“{run.ask}”</p>}
       <ol className="mt-4 flex flex-col">
         {steps.length === 0 && Array.from({ length: 6 }, (_, i) => <Skeleton key={i} className="my-2 h-8" />)}
-        {steps.map((step, i) => (
-          <StepRow key={i} n={i + 1} step={step} max={max} live={t.busy && i === steps.length - 1} />
+        {groups.map((g, i) => (
+          <StepRow key={g.from} group={g} max={max} live={t.busy && i === groups.length - 1} />
         ))}
         <li ref={end} aria-hidden />
       </ol>
@@ -364,23 +393,35 @@ function AgentRail({ t }: { t: Truce }) {
   )
 }
 
-function StepRow({ n, step, max, live }: { n: number; step: Step; max: number; live: boolean }) {
-  const v = viewStep(step)
-  const qloo = v.kind === 'qloo'
+function StepRow({ group: g, max, live }: { group: StepGroup; max: number; live: boolean }) {
+  const detail = g.calls.length > 1 ? g.calls : null
+  const list = g.kind === 'rescore' ? null : g.list
   return (
-    <li className="grid grid-cols-[24px_minmax(0,1fr)_auto] gap-x-2 border-b border-border/60 py-2 text-sm last:border-0">
-      <span className="pt-px text-xs text-muted-foreground tabular-nums">{n}</span>
+    <li className="grid grid-cols-[32px_minmax(0,1fr)_auto] gap-x-2 border-b border-border/60 py-2.5 text-sm last:border-0">
+      <span className="pt-px text-xs text-muted-foreground tabular-nums">{g.from === g.to ? g.from : `${g.from}–${g.to}`}</span>
       <div className="min-w-0">
-        <p className={cn('truncate', qloo ? 'font-mono text-[13px]' : 'font-medium', v.kind === 'pick' && 'text-primary')}>{v.title}</p>
-        {v.lines.length > 0 && <p className="truncate text-xs text-muted-foreground">{v.lines.join(' · ')}</p>}
-        {v.list && v.list.length > 0 && (
+        <p className={cn('truncate font-medium', g.kind === 'pick' && 'text-primary')}>{g.title}</p>
+        {g.tool && g.tool !== g.title && <p className="truncate font-mono text-xs text-muted-foreground">{g.tool}</p>}
+        {g.lines.length > 0 && <p className="truncate text-xs text-muted-foreground">{g.lines.join(' · ')}</p>}
+        {(detail || (list && list.length > 0)) && (
           <Collapsible>
             <CollapsibleTrigger className="group mt-1 inline-flex items-center gap-1 rounded-sm text-xs text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
               <ChevronRightIcon className="size-3 transition-transform group-data-[panel-open]:rotate-90" aria-hidden />
-              {v.list.length} places
+              {detail ? `${detail.length} calls` : `${list!.length} places`}
             </CollapsibleTrigger>
             <CollapsibleContent>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{v.list.join(' · ')}</p>
+              {detail ? (
+                <dl className="mt-1 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 text-xs leading-5 text-muted-foreground">
+                  {detail.map((c, i) => (
+                    <div key={i} className="contents">
+                      <dt className="truncate">{c.label}</dt>
+                      <dd className="text-right tabular-nums">{c.count}</dd>
+                    </div>
+                  ))}
+                </dl>
+              ) : (
+                <p className="mt-1 text-xs leading-5 text-muted-foreground">{list!.join(' · ')}</p>
+              )}
             </CollapsibleContent>
           </Collapsible>
         )}
@@ -388,15 +429,15 @@ function StepRow({ n, step, max, live }: { n: number; step: Step; max: number; l
       <div className="flex w-14 flex-col items-end gap-1 pt-0.5">
         {live ? (
           <Spinner className="size-3.5 text-muted-foreground" />
-        ) : v.count != null ? (
+        ) : g.count != null ? (
           <>
-            <span className="text-xs tabular-nums">{v.count}</span>
+            <span className="text-xs tabular-nums">{g.count}</span>
             <span className="h-1 w-full rounded-full bg-muted" aria-hidden>
-              <span className="block h-full rounded-full bg-foreground/40" style={{ width: `${(v.count / max) * 100}%` }} />
+              <span className="block h-full rounded-full bg-foreground/40" style={{ width: `${(g.count / max) * 100}%` }} />
             </span>
           </>
         ) : (
-          v.kind === 'pick' && <Badge variant="secondary">pick</Badge>
+          g.kind === 'pick' && <Badge variant="secondary">pick</Badge>
         )}
       </div>
     </li>

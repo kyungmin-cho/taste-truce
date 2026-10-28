@@ -18,7 +18,8 @@ Shared code lives in `src/shared/` (API client, NDJSON stream, step names, map) 
 
 ```sh
 npm install
-# Point the dev proxy at a running Taste Truce server (default http://127.0.0.1:3000).
+# Point the dev proxy at a local Taste Truce server. There is no default: do not use the live
+# deployment on :3000, which holds real provider keys. A server started without keys answers from its cache only.
 TASTE_TRUCE_BACKEND=http://127.0.0.1:3210 npx vite --port 5391
 # open http://127.0.0.1:5391/ledger/ (or /matrix/, /atlas/, /thread/)
 ```

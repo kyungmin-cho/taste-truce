@@ -6,14 +6,18 @@ import { defineConfig } from 'vite'
 // Variants talk to an unchanged Taste Truce server. The server only issues its session
 // cookie on GET / and rejects a POST whose Origin differs from Host, so /__session is
 // rewritten to / and the Origin header is dropped on the way through.
-const backend = process.env.TASTE_TRUCE_BACKEND ?? 'http://127.0.0.1:3000'
+// No default on purpose: 127.0.0.1:3000 is the live deployment, which holds real provider keys.
+// Point this at a separate local server (for example one started without keys on 3210).
+const backend = process.env.TASTE_TRUCE_BACKEND
+if (!backend && process.argv.some((a) => a === 'dev' || a.endsWith('vite') || a === 'serve'))
+  console.warn('Set TASTE_TRUCE_BACKEND to a local Taste Truce server; API requests will fail without it.')
 const variants = ['ledger', 'matrix', 'atlas', 'thread']
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
+  resolve: { alias: { '@': path.resolve(import.meta.dirname, './src') } },
   server: {
-    proxy: {
+    proxy: !backend ? undefined : {
       '/__session': { target: backend, rewrite: () => '/' },
       '/api': {
         target: backend,
@@ -25,7 +29,7 @@ export default defineConfig({
   },
   build: {
     rollupOptions: {
-      input: Object.fromEntries(variants.map((name) => [name, path.resolve(__dirname, `${name}/index.html`)])),
+      input: Object.fromEntries(variants.map((name) => [name, path.resolve(import.meta.dirname, `${name}/index.html`)])),
     },
   },
 })

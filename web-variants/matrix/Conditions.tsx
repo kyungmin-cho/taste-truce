@@ -3,13 +3,13 @@ import { useEffect, useState } from 'react'
 import { Command, CommandDialog, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
 import { Kbd } from '@/components/ui/kbd'
 import type { Truce } from '@/shared/useTruce'
+import { hasExclusions, openStarters } from '@/shared/conditions'
 
-const PRESET_CONDITIONS = ['No bars please', 'Somewhere quieter']
 
 function ConditionCommand({ t, onDone, autoFocus }: { t: Truce; onDone?: () => void; autoFocus?: boolean }) {
   const [text, setText] = useState('')
   const result = t.current
-  const excluded = !!result && (result.veto.excluded.length > 0 || !!result.veto.no_bars)
+  const excluded = hasExclusions(result)
   const submit = (value: string) => {
     const v = value.trim()
     if (!v || t.busy) return
@@ -43,7 +43,7 @@ function ConditionCommand({ t, onDone, autoFocus }: { t: Truce; onDone?: () => v
               <span className="truncate">Replan with “{text.trim()}”</span>
             </CommandItem>
           )}
-          {PRESET_CONDITIONS.map((c) => (
+          {openStarters(result).map((c) => (
             <CommandItem key={c} value={c} disabled={t.busy} onSelect={() => submit(c)}>
               <SparklesIcon />
               {c}

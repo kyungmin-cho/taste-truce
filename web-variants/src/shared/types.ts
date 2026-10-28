@@ -25,7 +25,7 @@ export type Concession = {
 export type ContrastRow = Place & { taste_rank: number | null; popularity_rank: number | null; change: 'shared' | 'added' | 'removed' }
 export type Step = { tool: string; entities?: string[]; count?: number; latency_ms?: number }
 export type Suggestion = { label: string; name: string; arguments: Record<string, unknown> }
-export type Veto = { excluded: string[]; no_bars?: boolean; [k: string]: unknown }
+export type Veto = { excluded: string[]; categories?: string[]; no_bars?: boolean; [k: string]: unknown }
 export type Result = {
   status: string
   people: Person[]

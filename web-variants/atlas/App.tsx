@@ -16,6 +16,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import { PlaceMap } from '@/shared/PlaceMap'
+import { hasExclusions, openStarters } from '@/shared/conditions'
 import { fmtRank, rankDepth, shortName, worstIndex } from '@/shared/rank'
 import { qlooCalls, viewStep } from '@/shared/steps'
 import type { Person, Result, Step } from '@/shared/types'
@@ -467,14 +468,13 @@ function AgentSteps({ steps, busy }: { steps: Step[]; busy: boolean }) {
   )
 }
 
-const DEFAULT_ASKS = ['No bars please', 'Somewhere quieter']
 
 function ConditionBar({ t, className }: { t: Truce; className?: string }) {
   const [text, setText] = useState('')
   const r = t.current
-  const excluded = !!r && (r.veto.excluded.length > 0 || !!r.veto.no_bars || r.excluded_count > 0)
+  const excluded = hasExclusions(r)
   const suggestions = r?.suggestions ?? []
-  const asks = DEFAULT_ASKS.filter((a) => !suggestions.some((s) => s.label.toLowerCase() === a.toLowerCase()))
+  const asks = openStarters(r).filter((a) => !suggestions.some((s) => s.label.toLowerCase() === a.toLowerCase()))
   const liveStep = t.busy ? t.live?.steps.at(-1) : undefined
 
   const submit = (event: FormEvent) => {

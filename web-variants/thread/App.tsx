@@ -1,5 +1,5 @@
 import { ArrowUpIcon, RotateCcwIcon } from 'lucide-react'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Bubble, BubbleContent } from '@/components/ui/bubble'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -19,16 +19,26 @@ import { Spinner } from '@/components/ui/spinner'
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { useTruce, type Run } from '@/shared/useTruce'
+import { hasExclusions, openStarters } from '@/shared/conditions'
 import type { Result } from '@/shared/types'
 import { ResultCard } from './ResultCard'
 import { RunTrace } from './RunTrace'
 
-const PROMPTS = ['No bars please', 'Somewhere quieter']
 
 export function App() {
   const t = useTruce()
   const finished = t.runs.filter((r) => r.result)
   const latestResultRun = finished.at(-1)
+
+  // On a phone the newest card is taller than the screen; land on its pick, not its bottom.
+  useEffect(() => {
+    if (t.busy || !latestResultRun || !window.matchMedia('(max-width: 640px)').matches) return
+    const timer = window.setTimeout(() => {
+      const pick = document.querySelector<HTMLElement>('[data-tt="pick"]')
+      pick?.closest('[data-slot="card"]')?.scrollIntoView({ block: 'start' }) ?? pick?.scrollIntoView({ block: 'start' })
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [t.busy, latestResultRun?.id])
 
   return (
     <TooltipProvider>
@@ -205,12 +215,12 @@ function Composer({ t }: { t: ReturnType<typeof useTruce> }) {
     setText('')
     t.addCondition(value)
   }
-  const excluded = !!current && (current.veto.excluded.length > 0 || !!current.veto.no_bars)
+  const excluded = hasExclusions(current)
   return (
     <div className="shrink-0 border-t bg-background/95 px-4 pt-3 pb-4 sm:px-6">
       <form onSubmit={submit} className="mx-auto flex w-full max-w-[1240px] flex-col gap-2.5">
         <div className="flex flex-wrap gap-2">
-          {PROMPTS.map((p) => (
+          {openStarters(current).map((p) => (
             <Button key={p} type="button" variant="outline" size="sm" disabled={t.busy || !current} onClick={() => t.addCondition(p)}>
               {p}
             </Button>
