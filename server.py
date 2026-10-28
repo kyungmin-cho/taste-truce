@@ -30,6 +30,15 @@ from qloo import Qloo, QlooError, BudgetError
 from sessions import Sessions
 from scenes import PRESETS, default_scene, scene_body, save_scene, read_scene, health
 
+# Provider scores the agent ranks with; neither page shows them, so responses leave them out.
+RAW_FIELDS=('affinity','explainability','popularity')
+
+def public(value):
+    """A copy of a result without the provider's raw scores; saved scenes keep them."""
+    if isinstance(value,dict):return {k:public(v) for k,v in value.items() if not ('id' in value and k in RAW_FIELDS)}
+    if isinstance(value,list):return [public(v) for v in value]
+    return value
+
 class Handler(BaseHTTPRequestHandler):
     protocol_version='HTTP/1.1'
     def log_message(self, *_):pass
@@ -54,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
         if route.startswith('/scene/'):
             name=route.split('/')[-1]
             result=read_scene(self.server.qloo,default_scene() if name=='default' else name)
-            return self.json_response(200 if result else 503,{'result':result,'error':None if result else 'The saved scene is still being prepared. Please reload in a minute.'})
+            return self.json_response(200 if result else 503,{'result':public(result) if result else None,'error':None if result else 'The saved scene is still being prepared. Please reload in a minute.'})
         if route.startswith('/assets/'):
             name=route[len('/assets/'):]
             file=WEB/'assets'/name
@@ -110,12 +119,12 @@ class Handler(BaseHTTPRequestHandler):
                 for name in PRESETS:
                     expected=scene_body(name)
                     if all(result.get(k)==v for k,v in expected.items()) and read_scene(self.server.qloo,name) is None:save_scene(self.server.qloo,name,result)
-            emit({'event':'result','result':result})
+            emit({'event':'result','result':public(result)})
         except BudgetError as err:
             result=read_scene(self.server.qloo,default_scene())
             if result:
                 result['notice']=str(err)+' Showing the saved default scene; your edits were not applied.'
-                emit({'event':'result','result':result})
+                emit({'event':'result','result':public(result)})
             else:emit({'event':'error','message':str(err)+' No saved default scene is available yet.'})
         except (QlooError,ValueError) as err:
             emit({'event':'error','message':str(err)})

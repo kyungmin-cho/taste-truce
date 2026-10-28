@@ -136,6 +136,18 @@ class PlanSizeLimitTests(unittest.TestCase):
         event=json.loads(text.strip().splitlines()[-1])
         self.assertEqual(event['event'],'result');self.assertEqual(set(event['result']['keys']),PLAN_KEYS)
 
+class PublicResultTests(unittest.TestCase):
+    def test_responses_leave_out_the_provider_scores_and_keep_what_the_pages_show(self):
+        place={'id':'p1','name':'Place','genre':'Restaurant','address':'1 Example Street','tags':[{'id':'t1','name':'Tag'}],'ranks':[1,2],
+               'affinity':0.9,'explainability':[{'entity_id':'s1','score':0.5}],'popularity':0.7}
+        result={'status':'done','picks':[place],'personal':[[place]],'contrast':{'rows':[place]},
+                'concessions':[{'person':'A','contributions':[{'seed':'Seed','score':0.5}]}],'choices':{'0:0':'s1'}}
+        shown=server.public(result)
+        for row in [shown['picks'][0],shown['personal'][0][0],shown['contrast']['rows'][0]]:
+            self.assertEqual(set(row),{'id','name','genre','address','tags','ranks'})
+        self.assertEqual(shown['concessions'],result['concessions']);self.assertEqual(shown['choices'],result['choices'])
+        self.assertIn('affinity',result['picks'][0])
+
 class WebImageTests(unittest.TestCase):
     def test_image_builds_the_front_end_and_ships_only_dist(self):
         text=(ROOT/'Dockerfile').read_text()
