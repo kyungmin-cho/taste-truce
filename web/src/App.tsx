@@ -133,7 +133,7 @@ export function App() {
             </div>
           </>
         )}
-        <Toaster position={mobile ? 'top-center' : 'top-right'} duration={2500} />
+        <Toaster position={mobile ? 'top-center' : 'top-right'} mobileOffset={{ top: 'calc(max(0.75rem, env(safe-area-inset-top)) + 7rem)' }} duration={2500} />
       </div>
       <Suspense>
         {editorUsed && <FriendEditor t={t} request={t.editRequest} mobile={mobile} onShare={share} />}
