@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { BudgetError } from '../src/py.ts'
-import { D1Store, LEASE, type D1Statement } from '../src/store.ts'
+import { D1Store, LEASE, SCHEMA, type D1Statement } from '../src/store.ts'
 import { warmed } from '../src/warm.ts'
 import { dispatch, makeEnv, SqliteD1 } from './support.ts'
 
@@ -259,4 +259,10 @@ test('a running plan answers a second request in the same session with 409', asy
 test('the cookie is Secure on https', async () => {
   const response = await dispatch(makeEnv({}), new Request('https://example.pages.dev/'))
   assert.match(response.headers.get('Set-Cookie')!, /HttpOnly; SameSite=Strict; Path=\/; Secure$/)
+})
+
+test('schema.sql, which the runbook runs before the first request, matches SCHEMA', () => {
+  const sql = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8')
+  const statements = sql.split('\n').filter((line) => !line.startsWith('--')).join('\n').split(';').map((s) => s.trim()).filter(Boolean)
+  assert.deepEqual(statements, SCHEMA)
 })
