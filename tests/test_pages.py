@@ -29,6 +29,17 @@ NODE = shutil.which('node')
 HARNESS = ROOT / 'pages' / 'test' / 'harness.ts'
 SEED = ROOT / 'pages' / 'seed_kv.py'
 CACHE = os.environ.get('TRUCE_CACHE_CHECK_DIR')
+
+
+def node_problem():
+    """Why node cannot run the Pages code here (TypeScript type stripping, node:sqlite), or None."""
+    if not NODE:
+        return 'node is not installed'
+    out = subprocess.run([NODE, str(HARNESS)], input='{"requests": []}', capture_output=True, text=True, cwd=ROOT / 'pages')
+    return None if out.returncode == 0 else 'node cannot run the Pages code here: ' + out.stderr.strip()[:160]
+
+
+NODE_PROBLEM = node_problem()
 KEYLESS = {'QLOO_API_KEY': '', 'QLOO_BASE_URL': 'http://127.0.0.1:9', 'DEFAULT_SCENE': 'majority', 'DEFAULT_SCENE_TTL_SECONDS': '0', 'QLOO_CACHE_TTL_SECONDS': '0'}
 NO_LLM = ('LLM_BASE_URL', 'LLM_MODEL', 'LLM_API_KEY')
 HIPHOP = {'name': 'Hip-hop + sneakers', 'seeds': [{'query': 'Kendrick Lamar', 'type': 'artist'}, {'query': 'Nike', 'type': 'brand'}]}
@@ -221,7 +232,7 @@ class Parity:
         self.assertLessEqual(self.ts['kv_writes'], 2 * writes)
 
 
-@unittest.skipUnless(NODE, 'node is needed to run the Pages code')
+@unittest.skipIf(NODE_PROBLEM, NODE_PROBLEM)
 class SyntheticParityTests(Parity, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -270,7 +281,7 @@ class SyntheticParityTests(Parity, unittest.TestCase):
         self.assertTrue(any(e['event'] == 'error' for e in results))
 
 
-@unittest.skipUnless(NODE and CACHE, 'Set TRUCE_CACHE_CHECK_DIR to a local Qloo cache')
+@unittest.skipUnless(CACHE and not NODE_PROBLEM, NODE_PROBLEM or 'Set TRUCE_CACHE_CHECK_DIR to a local Qloo cache')
 class CachedParityTests(Parity, unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -304,7 +315,7 @@ class CachedParityTests(Parity, unittest.TestCase):
 class SignatureTests(unittest.TestCase):
     """The KV key for a request is qloo.Qloo.signature, computed again in TypeScript."""
 
-    @unittest.skipUnless(NODE, 'node is needed to run the Pages code')
+    @unittest.skipIf(NODE_PROBLEM, NODE_PROBLEM)
     def test_typescript_signature_matches(self):
         cases = [('/search', {'query': "Joe's Pizza", 'types': 'urn:entity:place', 'take': 5, 'filter.location': '40.7081,-73.9571', 'filter.radius': 15}),
                  ('/search', {'query': '성수 카페 “quoted” \\ / \n tab\t', 'types': 'urn:entity:brand', 'take': 5}),

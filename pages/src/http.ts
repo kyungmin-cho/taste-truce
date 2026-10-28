@@ -2,7 +2,7 @@
 import { DEFAULT_PEOPLE, run } from './agent.ts'
 import { BudgetError, QlooError, ValueError, isDict, pyEq, pyStr, truthy, type Obj } from './py.ts'
 import { Qloo, type KV } from './qloo.ts'
-import { PRESETS, defaultScene, health as sceneHealth, publicJson, readScene, saveScene, sceneBody } from './scenes.ts'
+import { PRESETS, defaultScene, health as sceneHealth, publicJson, readScene, saveScene, sceneBody, sceneMeta } from './scenes.ts'
 import { D1Store, cookieToken, type D1 } from './store.ts'
 
 export type Env = Obj & { CACHE: KV; DB: D1 }
@@ -95,7 +95,7 @@ export async function plan(request: Request, env: Env, waitUntil: (p: Promise<un
       if (result.status === 'done' && !Object.values(result.veto).some(truthy) && !truthy(body.choices) && !pyStr(Object.hasOwn(body, 'veto_text') ? body.veto_text : '').trim() && !truthy(body.suggested_action)) {
         for (const name of Object.keys(PRESETS)) {
           const expected = sceneBody(name)
-          if (Object.entries(expected).every(([k, v]) => pyEq(result[k], v)) && (await readScene(env.CACHE, env, name)) === null) await saveScene(env.CACHE, name, result)
+          if (Object.entries(expected).every(([k, v]) => pyEq(result[k], v)) && (await sceneMeta(env.CACHE, env, name)) === null) await saveScene(env.CACHE, name, result)
         }
       }
       send(publicJson({ event: 'result', result }))
