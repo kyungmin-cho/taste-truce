@@ -16,10 +16,10 @@ MONTHLY_RESERVED_CALLS = "7500"
 # Qloo response cache and saved scenes, filled by seed_kv.py. Never committed.
 [[kv_namespaces]]
 binding = "CACHE"
-id = "00000000000000000000000000000000"
+id = "6c8d29021a254f0985922f06dc59d849"
 
 # Session and call-budget counters.
 [[d1_databases]]
 binding = "DB"
 database_name = "taste-truce"
-database_id = "00000000-0000-0000-0000-000000000000"
+database_id = "1d6cc6d8-be97-437e-965a-6edf141ce35f"
