@@ -80,6 +80,30 @@ test('P1: conditions stay through friend edits, show as chips and can be removed
   await shot(page, 'desktop-p1-removed')
 })
 
+test('P1: quieter and cheaper stay through a taste edit, and the agent widens the radius again', async ({ page, plans }) => {
+  await page.goto('/')
+  await expectScene(page, 'Maison Premiere', 44)
+  // Typed, so the local parser reads both conditions; only 2 places remain, found at 3.5 km.
+  await page.getByRole('textbox', { name: 'One more condition' }).fill('Somewhere quieter and cheaper')
+  await page.getByRole('button', { name: 'Replan' }).click()
+  await expectScene(page, 'The Brooklyn Star', 2)
+  await expect(page.getByText('Williamsburg NYC · Dinner · within 3.5 km · 2 candidates')).toBeVisible()
+  await expect(conditions(page)).toHaveText(['Somewhere quieter', 'Cheaper places'])
+
+  // Indie + jazz leaves and is typed back in last. The scene starts at 2 km again, so 3.5 km means the
+  // conditions came back and the agent widened again; without them it is 44 places at 2 km.
+  await openFriends(page)
+  await expect(page.locator('[data-tt="kept-conditions"]')).toContainText('Keeps Somewhere quieter · Cheaper places')
+  await moveLast(page, 'Indie + jazz', [['movie', 'Moonrise Kingdom'], ['artist', 'Miles Davis']])
+  await expectScene(page, 'The Brooklyn Star', 2)
+  const last = plans.at(-1)!.body as Plan['body'] & { start_radius: number }
+  expect(last.people.map((p) => p.name)).toEqual(['K-pop + streetwear', 'Pop + athleisure', 'Indie + jazz'])
+  expect(last).toMatchObject({ veto_text: '', start_radius: 2000, veto: { tags: ['Busy', 'Lively', 'Loud'], max_price_level: 2 } })
+  await expect(page.getByText('Williamsburg NYC · Dinner · within 3.5 km · 2 candidates')).toBeVisible()
+  await expect(conditions(page)).toHaveText(['Somewhere quieter', 'Cheaper places'])
+  await shot(page, 'desktop-p1-quieter-cheaper-after-edit')
+})
+
 test('P2: reload, Back and Forward show each finished scene again without a new plan', async ({ page, plans }) => {
   await page.goto('/')
   await expectScene(page, 'Maison Premiere', 44)
