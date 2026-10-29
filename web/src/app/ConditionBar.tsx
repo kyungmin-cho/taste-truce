@@ -1,17 +1,18 @@
 import { useState, type FormEvent } from 'react'
-import { CornerDownLeftIcon } from 'lucide-react'
+import { CornerDownLeftIcon, XIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from '@/components/ui/input-group'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
-import { hasExclusions, openStarters } from '@/shared/conditions'
+import { activeConditions, openStarters } from '@/shared/conditions'
 import type { Truce } from '@/shared/useTruce'
 
 // One more condition in plain words, the agent's suggested next step, and quick conditions.
 export function ConditionBar({ t, className }: { t: Truce; className?: string }) {
   const [text, setText] = useState('')
   const r = t.current
-  const excluded = hasExclusions(r)
+  const active = r ? activeConditions(r.veto) : []
+  const excluded = active.length > 0
   const suggestions = r?.suggestions ?? []
   const asks = openStarters(r).filter((a) => !suggestions.some((s) => s.label.toLowerCase() === a.toLowerCase()))
 
@@ -25,6 +26,27 @@ export function ConditionBar({ t, className }: { t: Truce; className?: string })
 
   return (
     <form onSubmit={submit} className={cn('flex flex-col gap-2.5', className)}>
+      {excluded && (
+        <ul className="flex flex-wrap items-center gap-1.5" aria-label="Active conditions" data-tt="conditions">
+          <li className="text-xs text-muted-foreground">Kept:</li>
+          {active.map((c) => (
+            <li key={c.label}>
+              <Button
+                type="button"
+                variant="outline"
+                size="xs"
+                className="border-primary/40 bg-accent text-accent-foreground pointer-coarse:h-9"
+                disabled={t.busy}
+                onClick={() => t.removeCondition(c.label, c.without)}
+                aria-label={`Remove condition: ${c.label}`}
+              >
+                {c.label}
+                <XIcon />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="flex flex-wrap gap-1.5">
         {suggestions.map((s) => (
           <Button key={s.label} type="button" variant="secondary" size="sm" disabled={t.busy || !r} onClick={() => t.followSuggestion(s)}>

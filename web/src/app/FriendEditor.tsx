@@ -7,7 +7,7 @@ import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { Separator } from '@/components/ui/separator'
 import { Sheet, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { hasExclusions } from '@/shared/conditions'
+import { activeConditions } from '@/shared/conditions'
 import { AREAS, MAX_FRIENDS, MAX_SEEDS, OCCASIONS, SEED_TYPES, SWAPS, sameScene } from '@/shared/scene'
 import type { Person, Scene, Seed } from '@/shared/types'
 import type { EditRequest, Truce } from '@/shared/useTruce'
@@ -51,7 +51,8 @@ function Editor({ t, request, onShare }: Props & { request: EditRequest }) {
 
   const filled = (list: Person[]) => list.every((p) => p.name.trim() && p.seeds.every((s) => s.query.trim()))
   const complete = filled(people)
-  const unchanged = !!t.current && sameScene(draft, t.current) && !hasExclusions(t.current)
+  const unchanged = !!t.current && sameScene(draft, t.current)
+  const kept = activeConditions(t.veto)
   const submit = (scene: Scene, ask?: string) => {
     t.closeEditor()
     t.recompute(scene, ask)
@@ -185,6 +186,11 @@ function Editor({ t, request, onShare }: Props & { request: EditRequest }) {
       </div>
 
       <SheetFooter className="flex-row flex-wrap items-center justify-between gap-2 border-t px-5 py-3">
+        {kept.length > 0 && (
+          <p className="w-full text-xs text-muted-foreground" data-tt="kept-conditions">
+            Keeps {kept.map((c) => c.label).join(' · ')}. Remove a condition next to the condition box.
+          </p>
+        )}
         <Button type="button" variant="ghost" size="sm" disabled={!complete} onClick={() => onShare(draft)}>
           <LinkIcon />
           Copy scene link

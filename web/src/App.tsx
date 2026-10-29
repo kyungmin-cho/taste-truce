@@ -71,7 +71,9 @@ export function App() {
     } else if (run.result) {
       toasted.current = run.id
       const r = run.result
-      if (r.notice) toast.warning(r.notice)
+      // The server's "nothing matched" note is about a new condition, so a friend edit that keeps
+      // the earlier conditions does not repeat it.
+      if (r.notice && run.conditioned) toast.warning(r.notice)
       else toast(`${r.pool_size} places left`, { description: `Fair pick: ${r.picks[0]?.name}` })
     }
   }, [t.live])
@@ -84,14 +86,15 @@ export function App() {
   // A new result shows the taste ranking again.
   useEffect(() => setPopular(false), [result])
 
+  // The same link the address bar shows after a plan: the inputs and the conditions in force.
   const share = async (scene: Scene) => {
     const url = new URL(location.href)
-    url.hash = 'scene=' + encodeScene(scene)
-    history.replaceState(null, '', url)
+    url.hash = 'scene=' + encodeScene(scene, t.veto)
     try {
       await navigator.clipboard.writeText(url.href)
       toast.success('Scene link copied')
     } catch {
+      history.replaceState(history.state, '', url)
       toast('Copy the scene link from the address bar')
     }
   }

@@ -25,7 +25,7 @@ export type Concession = {
 export type ContrastRow = Place & { taste_rank: number | null; popularity_rank: number | null; change: 'shared' | 'added' | 'removed' }
 export type Step = { tool: string; entities?: string[]; count?: number }
 export type Suggestion = { label: string; name: string; arguments: Record<string, unknown> }
-export type Veto = { excluded: string[]; categories?: string[]; no_bars?: boolean; [k: string]: unknown }
+export type Veto = { excluded: string[]; categories?: string[]; tags?: string[]; max_price_level?: number; vegetarian?: boolean; no_bars?: boolean; [k: string]: unknown }
 // One entity the server found for an ambiguous taste; the user picks which one they meant.
 export type Option = { id: string; name: string; genre?: string; types?: string[]; address?: string }
 export type Question = { key: string; person: string; query: string; options: Option[] }

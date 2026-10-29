@@ -1,4 +1,4 @@
-import type { Person, Scene } from './types'
+import type { Person, Scene, Veto } from './types'
 
 export const AREAS = ['Seongsu', 'Williamsburg NYC'] as const
 export const OCCASIONS = ['Dinner', 'Cafe', 'Drinks'] as const
@@ -21,19 +21,37 @@ export const sceneOf = (s: Scene): Scene => ({
 })
 
 export const sameScene = (a: Scene, b: Scene) => JSON.stringify(sceneOf(a)) === JSON.stringify(sceneOf(b))
-export const sameTastes = (a: Person[], b: Person[]) =>
-  JSON.stringify(a.map((p) => p.seeds.map((s) => [s.query, s.type]))) === JSON.stringify(b.map((p) => p.seeds.map((s) => [s.query, s.type])))
 
-// Scene links carry the inputs only (#scene=<base64url JSON>), in the same format as the previous page.
-export function encodeScene(scene: Scene) {
-  const text = JSON.stringify({ v: 1, ...sceneOf(scene) })
+// Scene links (#scene=<base64url JSON>) use the previous page's format. They carry the inputs and the
+// conditions by name (no bars, quieter, cheaper), never entity ids, so vetoed places and the answers
+// to "which one did you mean?" stay in this tab. The previous page reads the inputs and ignores the rest.
+export function encodeScene(scene: Scene, veto?: Veto | null) {
+  const conditions = linkConditions(veto)
+  const text = JSON.stringify({ v: 1, ...sceneOf(scene), ...(conditions ? { conditions } : {}) })
   return btoa(String.fromCharCode(...new TextEncoder().encode(text)))
     .replaceAll('+', '-')
     .replaceAll('/', '_')
     .replace(/=+$/, '')
 }
 
-export function decodeScene(hash: string): Scene {
+const CATEGORIES = ['bar', 'pub', 'nightclub']
+const TAGS = ['Loud', 'Busy', 'Lively', 'Expensive', 'Moderately expensive']
+type LinkConditions = { categories?: string[]; tags?: string[]; max_price_level?: number; vegetarian?: boolean }
+
+function linkConditions(veto?: Veto | null): LinkConditions | null {
+  if (!veto) return null
+  const c: LinkConditions = {}
+  if (veto.categories?.length) c.categories = veto.categories
+  if (veto.tags?.length) c.tags = veto.tags
+  if (veto.max_price_level) c.max_price_level = veto.max_price_level
+  if (veto.vegetarian) c.vegetarian = true
+  return Object.keys(c).length ? c : null
+}
+
+const listOf = (value: unknown, allowed: string[]) => Array.isArray(value) && value.length <= allowed.length && value.every((x) => allowed.includes(x))
+
+// A scene link's inputs and the veto its conditions stand for.
+export function decodeLink(hash: string): { scene: Scene; veto: Veto } {
   const text = hash.replace(/^#scene=/, '').replaceAll('-', '+').replaceAll('_', '/')
   if (text.length > 12000) throw new Error('Scene link is too long.')
   const scene = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(text), (c) => c.charCodeAt(0))))
@@ -54,5 +72,19 @@ export function decodeScene(hash: string): Scene {
       if (typeof s.query !== 'string' || !s.query.trim() || s.query.length > 120 || !(SEED_TYPES as readonly string[]).includes(s.type))
         throw new Error('Invalid taste seed.')
   }
-  return sceneOf(scene)
+  const c = scene.conditions ?? {}
+  if (
+    typeof c !== 'object' ||
+    (c.categories !== undefined && !listOf(c.categories, CATEGORIES)) ||
+    (c.tags !== undefined && !listOf(c.tags, TAGS)) ||
+    (c.max_price_level !== undefined && ![1, 2].includes(c.max_price_level)) ||
+    (c.vegetarian !== undefined && c.vegetarian !== true)
+  )
+    throw new Error('Invalid conditions in the scene link.')
+  const veto: Veto = { excluded: [] }
+  if (c.categories?.length) veto.categories = c.categories
+  if (c.tags?.length) veto.tags = c.tags
+  if (c.max_price_level) veto.max_price_level = c.max_price_level
+  if (c.vegetarian) veto.vegetarian = true
+  return { scene: sceneOf(scene), veto }
 }

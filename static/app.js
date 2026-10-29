@@ -46,7 +46,7 @@ async function plan(vetoText=''){
           if(event.result.start_radius)el('radius').value=event.result.start_radius;
           if(event.result.status==='friend_taste'){el('friend-editor').open=true;el('status').textContent='Friend added. Enter their film, artist or brand above, then recompute.';el(`seed-${people.length-1}-0`).focus();}
           else if(event.result.status==='clarification'){showQuestions(event.result.questions);el('status').textContent='A name needs a little more context.';}
-          else{result=event.result;choices=result.choices||{};el('taste-off').checked=false;renderResult();performance.mark('result-rendered');requestAnimationFrame(()=>requestAnimationFrame(()=>performance.mark('meaningful-render')));el('status').textContent=result.notice||sceneLine();el('veto-message').textContent=result.notice||(vetoText?`${result.excluded_count} ${result.excluded_count===1?'place':'places'} removed.`:'');}
+          else{result=event.result;choices=result.choices||{};keepResult();el('taste-off').checked=false;renderResult();performance.mark('result-rendered');requestAnimationFrame(()=>requestAnimationFrame(()=>performance.mark('meaningful-render')));el('status').textContent=result.notice||sceneLine();el('veto-message').textContent=result.notice||(vetoText?`${result.excluded_count} ${result.excluded_count===1?'place':'places'} removed.`:'');}
         }
       }
       if(done)break;
@@ -149,15 +149,19 @@ async function loadPreset(name){
   try{
     const response=await fetch('/scene/'+name);const data=await response.json();
     if(!response.ok)throw new Error(data.error);
-    result=data.result;choices=result.choices||{};veto=structuredClone(result.veto);people=structuredClone(result.people);renderPeople();el('taste-off').checked=false;
+    result=data.result;choices=result.choices||{};veto=structuredClone(result.veto);people=structuredClone(result.people);renderPeople();el('taste-off').checked=false;keepResult();
     (result.steps||[]).forEach(addStep);el('steps').scrollTop=0;renderResult();el('status').textContent=sceneLine();performance.mark('meaningful-render');
   }catch(err){el('status').textContent=err.message;el('friend-editor').open=true;}
   finally{setBusy(false);}
 }
+// The last finished result stays in this tab, so a reload or a Back to this page shows it without a request.
+function keepResult(){try{sessionStorage.setItem('tt:classic',JSON.stringify(result));}catch{}}
+function keptResult(){try{return JSON.parse(sessionStorage.getItem('tt:classic')||'null');}catch{return null;}}
+function showKept(kept){people=structuredClone(kept.people);el('area').value=kept.area;el('occasion').value=kept.occasion;el('radius').value=kept.start_radius;resetScene();renderPeople();steps=[];el('steps').innerHTML='';el('step-count').textContent='00';result=kept;choices=result.choices||{};veto=structuredClone(result.veto);el('taste-off').checked=false;(result.steps||[]).forEach(addStep);el('steps').scrollTop=0;renderResult();el('status').textContent=sceneLine();}
 fetch('/api/config').then(r=>r.json()).then(async data=>{
  config=data;el('headline').textContent=COPY.headline;
  el('presets').innerHTML=Object.entries(config.presets).map(([id,p])=>`<button data-preset="${esc(id)}">${esc(p.label)}</button>`).join('');
  el('presets').querySelectorAll('button').forEach(b=>b.onclick=()=>loadPreset(b.dataset.preset));
  if(location.hash.startsWith('#scene=')){const scene=decodeScene(location.hash);people=scene.people;el('area').value=scene.area;el('occasion').value=scene.occasion;el('radius').value=scene.start_radius;resetScene();renderPeople();await plan();}
- else await loadPreset(config.default_scene);
+ else{const kept=keptResult();if(kept?.picks)showKept(kept);else await loadPreset(config.default_scene);}
 }).catch(err=>{el('status').textContent=err.message||'Could not load the scene. Reload to retry.';});

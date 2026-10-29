@@ -1,16 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getConfig, getScene, openSession, plan, type PlanBody } from './api'
-import { decodeScene, sameTastes, sceneOf } from './scene'
-import type { Config, Question, Result, Scene, Step, Suggestion } from './types'
+import { decodeLink, encodeScene, sceneOf } from './scene'
+import type { Config, Person, Question, Result, Scene, Seed, Step, Suggestion, Veto } from './types'
 
 // One run of the agent: what was asked, the steps it took and what it returned.
 // `waiting` marks a run that stopped to ask which entity a taste means.
-export type Run = { id: number; ask: string; steps: Step[]; result: Result | null; error: string | null; preset?: string; waiting?: boolean }
+// `conditioned` marks a run the user asked for with words or a suggestion, the only runs whose notice is shown.
+export type Run = { id: number; ask: string; steps: Step[]; result: Result | null; error: string | null; preset?: string; waiting?: boolean; conditioned?: boolean }
 export type Pending = { question: Question; body: PlanBody; ask: string }
 // Opens the friend editor with these inputs; `focus` is [friend, taste] to put the cursor in.
 export type EditRequest = { scene: Scene; focus?: [number, number]; id: number }
 
-const NO_VETO = { excluded: [], no_bars: false }
+const NO_VETO: Veto = { excluded: [], no_bars: false }
+
+// Each finished result is a history entry (#scene=… or the bare page for a saved scene) whose result
+// is kept in this tab's sessionStorage, so reload, Back and Forward show it again without a request.
+type Entry = { result: Result; preset: string | null }
+const ENTRY = 'tt:entry:'
+const INDEX = 'tt:entries'
+const KEEP = 20
+
+function saveEntry(id: string, entry: Entry) {
+  try {
+    const ids: string[] = JSON.parse(sessionStorage.getItem(INDEX) || '[]').filter((x: string) => x !== id)
+    ids.push(id)
+    while (ids.length > KEEP) sessionStorage.removeItem(ENTRY + ids.shift())
+    for (;;) {
+      try {
+        sessionStorage.setItem(ENTRY + id, JSON.stringify(entry))
+        break
+      } catch (err) {
+        // Storage full: drop the oldest entry and try again; with nothing left to drop, give up.
+        if (ids.length <= 1) throw err
+        sessionStorage.removeItem(ENTRY + ids.shift())
+      }
+    }
+    sessionStorage.setItem(INDEX, JSON.stringify(ids))
+  } catch {
+    // Without storage the page still works; reload then plans the linked scene again.
+  }
+}
+
+function loadEntry(id: unknown): Entry | null {
+  if (typeof id !== 'string') return null
+  try {
+    return JSON.parse(sessionStorage.getItem(ENTRY + id) || 'null')
+  } catch {
+    return null
+  }
+}
+
+// A resolved "which one did you mean?" belongs to a friend's taste in an area, wherever that taste sits.
+const choiceKey = (area: string, person: Person, seed: Seed) => JSON.stringify([area, person.name.trim(), seed.type, seed.query.trim().toLowerCase()])
 
 export function useTruce() {
   const [config, setConfig] = useState<Config | null>(null)
@@ -22,7 +63,14 @@ export function useTruce() {
   const [editRequest, setEditRequest] = useState<EditRequest | null>(null)
   // Inputs sent last, so the editor and the scene link still work before a plan has finished.
   const [sentScene, setSentScene] = useState<Scene | null>(null)
+  // Conditions of a run that stopped to ask something; a finished run carries its own.
+  const [sentVeto, setSentVeto] = useState<Veto | null>(null)
   const nextId = useRef(1)
+  const chosen = useRef(new Map<string, string>())
+  // Whether this page already has a history entry, and a counter that makes Back and Forward drop
+  // the answer of a plan that was still running.
+  const entered = useRef(false)
+  const epoch = useRef(0)
 
   const withResults = runs.filter((r) => r.result)
   const current = withResults.at(-1)?.result ?? null
@@ -31,17 +79,62 @@ export function useTruce() {
   // Inputs to edit or share: those of a run that stopped to ask something, else the result's.
   // Only the inputs: the editor sends this scene back, and a whole Result is far over the server's limit.
   const scene: Scene | null = live?.waiting ? sentScene : current ? sceneOf(current) : sentScene
+  // The conditions in force. Friend edits and recomputes keep them; only the user removes them.
+  const veto: Veto = (live?.waiting ? sentVeto : current?.veto) ?? NO_VETO
 
   const patch = (id: number, change: Partial<Run>) => setRuns((all) => all.map((r) => (r.id === id ? { ...r, ...change } : r)))
 
+  const remember = (result: Result) => {
+    for (const [key, id] of Object.entries(result.choices ?? {})) {
+      const [pi, si] = key.split(':').map(Number)
+      const person = result.people[pi]
+      if (person?.seeds[si]) chosen.current.set(choiceKey(result.area, person, person.seeds[si]), id)
+    }
+  }
+
+  // Entity choices for these inputs: every taste answered before in this area keeps its answer.
+  const choicesFor = (next: Scene) => {
+    const out: Record<string, string> = {}
+    next.people.forEach((p, pi) =>
+      p.seeds.forEach((s, si) => {
+        const id = chosen.current.get(choiceKey(next.area, p, s))
+        if (id) out[`${pi}:${si}`] = id
+      }),
+    )
+    return out
+  }
+
+  const commit = (result: Result, presetName: string | null) => {
+    remember(result)
+    const id = `${Date.now().toString(36)}-${nextId.current++}`
+    saveEntry(id, { result, preset: presetName })
+    const url = new URL(location.href)
+    url.hash = presetName ? '' : 'scene=' + encodeScene(result, result.veto)
+    history[entered.current ? 'pushState' : 'replaceState']({ tt: id }, '', url)
+    entered.current = true
+  }
+
+  const restore = (entry: Entry) => {
+    epoch.current++
+    remember(entry.result)
+    setPending(null)
+    setEditRequest(null)
+    setError(null)
+    setPreset(entry.preset)
+    setRuns([{ id: nextId.current++, ask: '', steps: entry.result.steps ?? [], result: entry.result, error: null, preset: entry.preset ?? undefined }])
+  }
+
   const loadPreset = useCallback(async (name: string) => {
+    const mine = epoch.current
     setBusy(true)
     setError(null)
     setPending(null)
     setPreset(name)
     try {
       const result = await getScene(name)
+      if (epoch.current !== mine) return
       setRuns([{ id: nextId.current++, ask: '', steps: result.steps ?? [], result, error: null, preset: name }])
+      commit(result, name)
     } catch (err) {
       setError((err as Error).message)
     } finally {
@@ -52,35 +145,42 @@ export function useTruce() {
   // Sends one plan request and files the answer: a result, a question, or a friend to fill in.
   const send = useCallback(async (ask: string, body: PlanBody) => {
     const id = nextId.current++
+    const mine = epoch.current
     setBusy(true)
     setError(null)
     setPending(null)
     setSentScene(sceneOf(body))
-    setRuns((all) => [...all, { id, ask, steps: [], result: null, error: null }])
+    setRuns((all) => [...all, { id, ask, steps: [], result: null, error: null, conditioned: !!(body.veto_text || body.suggested_action) }])
     const steps: Step[] = []
     try {
       const answer = await plan(body, (step) => {
         steps.push(step)
         patch(id, { steps: [...steps] })
       })
+      // Back or Forward moved to another entry while this plan ran.
+      if (epoch.current !== mine) return null
       const asked = sceneOf(answer)
       if (answer.status === 'clarification' && 'questions' in answer) {
         patch(id, { steps: [...steps], waiting: true })
         setSentScene(asked)
+        setSentVeto(answer.veto)
         setPending({ question: answer.questions[0], body: { ...body, ...asked, veto: answer.veto }, ask })
         return null
       }
       if (answer.status === 'friend_taste') {
         patch(id, { steps: [...steps], waiting: true })
         setSentScene(asked)
+        setSentVeto(answer.veto)
         const friend = answer.people.length - 1
         setEditRequest({ scene: asked, focus: [friend, Math.max(0, answer.people[friend].seeds.length - 1)], id })
         return null
       }
       const result = answer as Result
       patch(id, { result, steps: [...steps] })
+      commit(result, null)
       return result
     } catch (err) {
+      if (epoch.current !== mine) return null
       const message = (err as Error).message
       patch(id, { error: message })
       setError(message)
@@ -94,20 +194,28 @@ export function useTruce() {
     let alive = true
     ;(async () => {
       try {
+        // A reload shows this entry's result again before anything else loads.
+        const entry = loadEntry(history.state?.tt)
+        if (entry) {
+          entered.current = true
+          restore(entry)
+        }
         await openSession()
         const data = await getConfig()
         if (!alive) return
         setConfig(data)
+        if (entry) return
         if (location.hash.startsWith('#scene=')) {
-          let linked: Scene
+          let linked: { scene: Scene; veto: Veto }
           try {
-            linked = decodeScene(location.hash)
+            linked = decodeLink(location.hash)
           } catch (err) {
             setError((err as Error).message)
             await loadPreset(data.default_scene)
             return
           }
-          await send('Scene link', { ...linked, choices: {}, veto: NO_VETO, veto_text: '' })
+          // veto_text stays empty: a link replays its conditions without the planner.
+          await send('Scene link', { ...linked.scene, choices: {}, veto: linked.veto, veto_text: '' })
         } else await loadPreset(data.default_scene)
       } catch (err) {
         setError((err as Error).message)
@@ -117,6 +225,17 @@ export function useTruce() {
       alive = false
     }
   }, [loadPreset, send])
+
+  // Back and Forward: the entry's stored result, or, when this tab no longer has it, a fresh load of that URL.
+  useEffect(() => {
+    const onPop = (event: PopStateEvent) => {
+      const entry = loadEntry(event.state?.tt)
+      if (entry) restore(entry)
+      else location.reload()
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   const run = (ask: string, extra: Partial<PlanBody> = {}) => {
     if (busy || !current) return null
@@ -139,13 +258,14 @@ export function useTruce() {
   const resetExclusions = () => run('Reset exclusions', { veto: NO_VETO })
   const followSuggestion = (s: Suggestion) => run(s.label, { veto_text: s.label, suggested_action: { name: s.name, arguments: s.arguments } })
 
-  // Edited friends or scene: earlier exclusions are dropped, and entity choices survive only
-  // when every taste and the area stay the same.
+  const removeCondition = (label: string, without: Veto) => run(`Removed: ${label}`, { veto: without })
+
+  // Edited friends or scene: the conditions in force stay, and every taste that was answered
+  // before keeps its answer.
   const recompute = (next: Scene, ask = 'Recompute') => {
     if (busy) return null
-    const keep = current && current.area === next.area && sameTastes(current.people, next.people)
     setPreset(null)
-    return send(ask, { ...sceneOf(next), choices: keep ? (current.choices ?? {}) : {}, veto: NO_VETO, veto_text: '' })
+    return send(ask, { ...sceneOf(next), choices: choicesFor(next), veto, veto_text: '' })
   }
 
   // Answer to "which one did you mean?": an entity id, or skip this taste.
@@ -168,8 +288,8 @@ export function useTruce() {
   const closeEditor = () => setEditRequest(null)
 
   return {
-    config, preset, runs, current, previous, live, busy, error, scene, pending, editRequest,
-    loadPreset, addCondition, vetoPlace, resetExclusions, followSuggestion, recompute, answer, dismissQuestion, openEditor, closeEditor,
+    config, preset, runs, current, previous, live, busy, error, scene, veto, pending, editRequest,
+    loadPreset, addCondition, vetoPlace, resetExclusions, removeCondition, followSuggestion, recompute, answer, dismissQuestion, openEditor, closeEditor,
   }
 }
 
