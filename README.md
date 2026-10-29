@@ -11,7 +11,7 @@ Live demo: https://taste-truce.pages.dev
 1. Open the demo. The first screen is the saved "Williamsburg · majority / minority" scene: dinner in Williamsburg for three friends. It loads from a stored snapshot, so opening the page makes no Qloo call.
 2. Read the concession table. Its rows are the most popular place, each friend's own #1, a majority #1 when there is one, and the fair pick; a place that is several of these gets one row with every label. The worst rank in each row is highlighted. Two friends share a #1, Ume, so a vote picks it 2 to 1, and the jazz fan ranks it #29. The fair pick, Maison Premiere, ranks 6·3·2.
 3. Type a veto such as "somewhere quieter" or "no bars please" and press Replan. The Agent steps panel lists each tool call, then an `observe → replan` step that suggests what to try next.
-4. Open "Edit friends and scene" and replace friend 2 with Hip-hop + sneakers. The table shows whether the fair pick moved (here Maison Premiere → Five Leaves) and says "unchanged" when it didn't.
+4. Conditions stay on through friend edits, so first press "Reset exclusions" ("Reset" on a phone) to return to the 44 places. Then press "Friends" and replace friend 2 with Hip-hop + sneakers. The table shows whether the fair pick moved (here Maison Premiere → Five Leaves, over 47 places) and says "unchanged" when it didn't.
 5. Press "+ Add friend", set the new taste to place, type "Joe's Pizza" and press "Recompute ranks". Several places share that name, so the agent asks which one you mean before it ranks anything.
 6. Choose the "Williamsburg" preset. There the fair pick is also the most popular place and friend 3's #1, ranking 8·8·1. Choosing either other friend's #1 instead would push someone down to #49 or #40.
 
