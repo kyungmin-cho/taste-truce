@@ -1,6 +1,6 @@
 import unittest
 from agent import compact
-from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, concession_table, consensus, eligible, venue_evidence
+from logic import CATEGORY, DINNER, ambiguity, complete_scores, concession, concession_table, consensus, distinct_options, eligible, venue_evidence
 
 def place(i,genre='Korean barbecue restaurant',tags=None):
     return {'id':i,'name':i,'genre':genre,'tags':tags or [{'id':CATEGORY+'restaurant','name':'Restaurant'},{'id':DINNER,'name':'Dinner'}]}
@@ -136,5 +136,15 @@ class ContrastTests(unittest.TestCase):
         self.assertIsNone(rows['c']['popularity_rank'])
         self.assertEqual(rows['c']['change'],'added')
         self.assertEqual(rows['b']['change'],'shared')
+
+class OptionTests(unittest.TestCase):
+    def test_a_branch_listed_twice_is_offered_once_and_the_first_stays(self):
+        joe=lambda i,name,address:{'id':i,'name':name,'address':address}
+        results=[joe('a',"Joe's Pizza",'10 Pizza Ave Brooklyn, NY 11210'),joe('b',"Joe's Pizza",'11 Pizza Ave Brooklyn, NY 11211'),
+                 joe('c',"Joe\u2019s Pizza",'12 Pizza Ave Brooklyn, NY 11212'),joe('d',"JOE'S PIZZA",'11 Pizza Ave.,  Brooklyn, NY 11211')]
+        self.assertEqual([e['id'] for e in distinct_options(results)],['a','b','c'])
+    def test_results_without_an_address_are_all_kept(self):
+        results=[{'id':'a','name':'Nirvana'},{'id':'b','name':'Nirvana'},{'id':'c','name':'Nirvana','address':''}]
+        self.assertEqual([e['id'] for e in distinct_options(results)],['a','b','c'])
 
 if __name__=='__main__':unittest.main()

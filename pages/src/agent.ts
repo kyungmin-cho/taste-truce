@@ -1,5 +1,5 @@
 // Port of agent.py: a bounded tool loop that resolves, clarifies, retrieves, widens, rescores and decides.
-import { OCCASIONS, ambiguity, completeScores, concession, concessionTable, consensus, eligible, ranked, tasteContrast } from './logic.ts'
+import { OCCASIONS, ambiguity, completeScores, distinctOptions, concession, concessionTable, consensus, eligible, ranked, tasteContrast } from './logic.ts'
 import { applyTools, chooseTools, labelFor, maxRadius, observeReplan, validate, type Action } from './planner.ts'
 import { BudgetError, InternalError, PlannerError, QlooError, ValueError, casefold, g, hashable, isDict, pyLen, pyStr, re, slice, sorted, strip, truthy, type Obj } from './py.ts'
 import type { Hit, Qloo } from './qloo.ts'
@@ -140,7 +140,7 @@ export async function run(env: Obj, qloo: Qloo, session: Session, body: Obj, emi
       seedNames.set(selected.id, selected.name)
       resolvedChoices[`${pi}:${activeSeeds[pi].length - 1}`] = selected.id
       ids[pi].push(selected.id)
-    } else clarification.push({ key, person: friends[pi].name, query: seed.query, options: results })
+    } else clarification.push({ key, person: friends[pi].name, query: seed.query, options: distinctOptions(results) })
   }
   if (clarification.length) {
     step('ask user', clarification.map((c) => c.query), clarification.length)

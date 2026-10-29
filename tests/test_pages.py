@@ -309,7 +309,8 @@ class CachedParityTests(Parity, unittest.TestCase):
         replaced = self.result('replace friend 2')
         self.assertEqual((replaced['picks'][0]['name'], replaced['pool_size']), ('Five Leaves', 47))
         asked = self.result("add Joe's Pizza")
-        self.assertEqual((asked['status'], len(asked['questions'][0]['options'])), ('clarification', 5))
+        # Qloo lists one branch twice under two ids; the question offers it once.
+        self.assertEqual((asked['status'], len(asked['questions'][0]['options'])), ('clarification', 4))
 
 
 class SignatureTests(unittest.TestCase):

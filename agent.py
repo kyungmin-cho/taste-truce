@@ -2,7 +2,7 @@
 from concurrent.futures import ThreadPoolExecutor
 import re
 import time
-from logic import OCCASIONS, ambiguity, complete_scores, concession, consensus, eligible, kept_tag, ranked, taste_contrast, concession_table, venue_terms
+from logic import OCCASIONS, ambiguity, complete_scores, distinct_options, concession, consensus, eligible, kept_tag, ranked, taste_contrast, concession_table, venue_terms
 from qloo import QlooError, BudgetError
 from planner import choose_tools, apply_tools, PlannerError, observe_replan, validate, label_for, max_radius
 
@@ -117,7 +117,7 @@ class Agent:
                 seed_names[selected['id']]=selected['name']
                 resolved_choices[f'{pi}:{len(active_seeds[pi])-1}']=selected['id']
             if selected:ids[pi].append(selected['id'])
-            else:clarification.append({'key':key,'person':people[pi]['name'],'query':seed['query'],'options':results})
+            else:clarification.append({'key':key,'person':people[pi]['name'],'query':seed['query'],'options':distinct_options(results)})
         if clarification:
             step('ask user',[c['query'] for c in clarification],len(clarification))
             return {'status':'clarification','people':people,'area':area,'occasion':occasion,'start_radius':start_radius,'questions':clarification,'planner':planner,'steps':steps,'veto':veto,'elapsed_ms':round((time.perf_counter()-started)*1000)}

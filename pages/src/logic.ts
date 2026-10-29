@@ -190,6 +190,20 @@ export function ambiguity(results: Obj[], query: string): boolean {
   return results.filter((e) => strip(casefold(e.name)) === q).length !== 1
 }
 
+const plain = (text: unknown) => (typeof text === 'string' ? casefold(text) : '').replace(/[^\p{L}\p{N}]+/gu, ' ').trim()
+
+// Choices a person can tell apart: Qloo can list one branch twice, so only the first (best ranked)
+// result per normalized name and address is offered. Results without an address are all kept.
+export function distinctOptions(results: Obj[]): Obj[] {
+  const seen = new Set<string>()
+  return results.filter((e) => {
+    const key = plain(e.address) ? JSON.stringify([plain(e.name), plain(e.address)]) : 'id:' + e.id
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function tasteContrast(picks: Obj[], allPicks: Obj[], popularity: Obj[]): [Obj[], Obj] {
   const sample = [...popularity].sort((a, b) => cmp([-(a.popularity || 0), a.id], [-(b.popularity || 0), b.id]))
   const baseline = sample.slice(0, 10)

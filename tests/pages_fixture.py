@@ -88,8 +88,9 @@ FLAKY = next(e['entity_id'] for e in sorted(PLACES['seongsu'], key=lambda e: e['
 
 def search(query, kind, place):
     if kind == 'place' and query == "Joe's Pizza":
+        # The last one repeats the third one's branch under another id, as Qloo does for one Joe's Pizza.
         return [{'entity_id': ident(f'joe:{k}'), 'name': "Joe's Pizza", 'types': ['urn:entity:place'],
-                 'properties': {'address': f'{k + 10} Pizza Ave, Brooklyn, NY 1121{k}'}} for k in range(5)]
+                 'properties': {'address': f'{min(k, 2) + 10} Pizza Ave, Brooklyn, NY 1121{min(k, 2)}' if k != 3 else '13 Pizza Ave, Brooklyn, NY 11213'}} for k in range(5)]
     if query.startswith('Nobody'):
         return [{'entity_id': ident(f'{query}:{k}'), 'name': f'{query} {k}', 'types': ['urn:entity:' + kind]} for k in range(3)]
     if query.startswith('Nothing'):

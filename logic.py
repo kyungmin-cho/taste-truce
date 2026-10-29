@@ -140,6 +140,20 @@ def ambiguity(results, query):
     exact = [e for e in results if e['name'].casefold().strip() == query.casefold().strip()]
     return len(exact) != 1
 
+def _plain(text):
+    return ' '.join(''.join(c if c.isalnum() else ' ' for c in (text or '').casefold()).split())
+
+def distinct_options(results):
+    """Choices a person can tell apart: Qloo can list one branch twice, so only the first (best ranked)
+    result per normalized name and address is offered. Results without an address are all kept."""
+    seen, options = set(), []
+    for e in results:
+        key = (_plain(e.get('name')), _plain(e.get('address'))) if _plain(e.get('address')) else e['id']
+        if key not in seen:
+            seen.add(key)
+            options.append(e)
+    return options
+
 def taste_contrast(picks, all_picks, popularity):
     """Ranks refer only to the returned eligible sample, never the whole neighborhood."""
     sample = sorted(popularity, key=lambda e: (-(e.get('popularity') or 0), e['id']))
