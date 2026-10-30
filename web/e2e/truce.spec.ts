@@ -4,6 +4,7 @@ import { addJoesPizza, conditions, record, type Plan, expect, expectScene, openF
 // Every plan in these flows is answered from the local response cache, unless a test says otherwise.
 test.afterEach(({ plans }) => {
   for (const p of plans) expect(p.misses, 'a Qloo step missed the cache').toBe(0)
+  for (const p of plans) expect(p.fallback, 'a rescore failed and the plan fell back to rank-sum').toBeNull()
 })
 
 test('Try it 1 to 4 in sequence: No bars stays on at step 3', async ({ page, plans }) => {
@@ -23,11 +24,11 @@ test('Try it 1 to 4 in sequence: No bars stays on at step 3', async ({ page, pla
   await expect(conditions(page)).toHaveText(['No bars'])
   await shot(page, 'desktop-try2-no-bars')
 
-  // 3. Replace friend 2. The condition stays: Lilia over 31 places, and the chip says why.
+  // 3. Replace friend 2. The condition stays: Lilia over 18 places, and the chip says why.
   await openFriends(page)
   await expect(page.locator('[data-tt="kept-conditions"]')).toContainText('Keeps No bars')
   await page.getByRole('button', { name: 'Hip-hop + sneakers', exact: true }).click()
-  await expectScene(page, 'Lilia', 31)
+  await expectScene(page, 'Lilia', 18)
   expect(plans.at(-1)!.body.veto).toMatchObject({ categories: ['bar', 'nightclub', 'pub'] })
   await expect(conditions(page)).toHaveText(['No bars'])
   await expect(page.getByRole('button', { name: 'No bars please', exact: true })).toHaveCount(0)
@@ -71,7 +72,7 @@ test('P1: conditions stay through friend edits, show as chips and can be removed
   // A friend edit keeps the condition; removing it afterwards gives the scene without it.
   await openFriends(page)
   await page.getByRole('button', { name: 'Hip-hop + sneakers', exact: true }).click()
-  await expectScene(page, 'Lilia', 31)
+  await expectScene(page, 'Lilia', 18)
   await expect(conditions(page)).toHaveText(['No bars'])
   await page.getByRole('button', { name: 'Remove condition: No bars' }).click()
   await expectScene(page, 'Five Leaves', 47)
@@ -111,12 +112,12 @@ test('P2: reload, Back and Forward show each finished scene again without a new 
   await expectScene(page, 'Lilia', 17)
   await openFriends(page)
   await page.getByRole('button', { name: 'Hip-hop + sneakers', exact: true }).click()
-  await expectScene(page, 'Lilia', 31)
+  await expectScene(page, 'Lilia', 18)
   expect(page.url()).toContain('#scene=')
   const sent = plans.length
 
   await page.reload()
-  await expectScene(page, 'Lilia', 31)
+  await expectScene(page, 'Lilia', 18)
   await expect(conditions(page)).toHaveText(['No bars'])
   await expect(page.locator('[data-tt="friends"]')).toContainText('3')
   await openFriends(page)
@@ -134,7 +135,7 @@ test('P2: reload, Back and Forward show each finished scene again without a new 
   await page.goForward()
   await expectScene(page, 'Lilia', 17)
   await page.goForward()
-  await expectScene(page, 'Lilia', 31)
+  await expectScene(page, 'Lilia', 18)
   expect(plans.length, 'reload, Back and Forward sent plans').toBe(sent)
 
   // The editor carries on from the restored scene with its conditions.
